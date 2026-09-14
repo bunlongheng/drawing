@@ -41,8 +41,8 @@ npm install
 npm run dev
 ```
 
-Open <http://localhost:3037>. To use it on an iPad on the same network, run
-`npm run dev -- -H 0.0.0.0` and browse to your machine's LAN address on port 3037.
+Open <http://localhost:3049>. To use it on an iPad on the same network, run
+`npm run dev -- -H 0.0.0.0` and browse to your machine's LAN address on port 3049.
 
 ## Usage
 
@@ -104,7 +104,7 @@ undo/redo availability.
 
 **None.** Drawing runs entirely in the browser - no database, no API keys, no server-side state, no
 telemetry. `.env.example` documents this so the absence is deliberate rather than ambiguous. The only
-optional local setting is `PORT`, for running the dev server somewhere other than 3037.
+optional local setting is `PORT`, for running the dev server somewhere other than 3049.
 
 Nothing you draw leaves your device.
 
@@ -133,7 +133,7 @@ vercel --prod     # production
 | | |
 |---|---|
 | Build | `npm run build` |
-| Start | `npm run start` (port 3037) |
+| Start | `npm run start` (port 3049) |
 | Install | `npm ci` |
 | Output | Fully static - every route prerenders |
 
