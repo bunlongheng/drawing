@@ -41,6 +41,7 @@ A minimal neon sketchpad for Apple Pencil. Pure black canvas, pressure-sensitive
 - **Download or share.** PNG at device resolution, through the native share sheet on iPadOS and iOS and a download everywhere else.
 - **Undo, redo, clear.** Toolbar or `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+S`; clear asks twice before erasing.
 - **Installable.** Add to Home Screen for a fullscreen pad with no browser chrome.
+- **Sharp at any zoom.** Resolution follows a pixel budget rather than a fixed cap, so zooming in buys detail instead of magnifying pixels. Drawing with a mouse gets a pencil cursor with the hotspot on its nib.
 
 ![The neon style picker, each swatch drawn by the real renderer](docs/screenshots/styles.png)
 
@@ -121,6 +122,8 @@ That last point is what makes it usable: a long sweeping stroke went from **107 
 | Replay timing | Constant pace over samples | The original timestamps | A steady pace is easier to learn from, and no per-sample clock has to be stored | It does not reproduce your hesitations |
 | Clip format | MP4 or WebM via MediaRecorder | An animated GIF | A GIF of a full-screen drawing is many times larger and caps at 256 colours, which a neon gradient cannot survive | No inline autoplay in some old chat clients |
 | Clip resolution | Capped at 1920px, 30fps | The canvas as-is | An iPad canvas is 2700px wide, which encodes to a big file for no visible gain on playback | Not a pixel-exact capture |
+| Canvas resolution | A pixel budget | A fixed device-ratio cap | A flat cap blurred the drawing exactly when someone zoomed in; a budget raises the ratio as the CSS box shrinks | A very large window renders below 4x |
+| Bloom resolution | Half, upscaled | Quarter | A quarter was cheaper, but the upscale went chunky against a sharp core and read as blurry | Four times the blur work, still at the frame floor |
 | Gradient progress | Triangle wave over distance | A ramp across the stroke | The total length is unknown while drawing, and easing back makes a long stroke a ribbon | A very long stroke repeats the sweep |
 
 ## Tech stack
@@ -155,7 +158,7 @@ To draw on an iPad on the same network, run `npm run dev -- -H 0.0.0.0` and brow
 | Clear | Tap the bin, then tap again to confirm |
 | Animate or set replay speed | The spark control in the toolbar |
 | Export the replay as video | The camera button, next to play |
-| Replay the drawing | The play button; the canvas locks until you stop it |
+| Replay the drawing | The play button; the canvas locks and a speed strip appears until you stop it |
 | Save a PNG | Toolbar, or `Cmd+S` |
 | Share | The share button - native sheet where available, otherwise a download |
 

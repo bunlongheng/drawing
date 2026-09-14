@@ -30,7 +30,6 @@
 }
 
 
-
 html,
 body {
   height: 100%;
@@ -60,6 +59,19 @@ body {
   background: #000;
   touch-action: none;
   cursor: crosshair;
+}
+
+/*
+  A pencil for anyone drawing with a mouse or trackpad. The hotspot sits on the
+  nib, so the line starts where the tip is. Fine pointers only - a touch device
+  has no cursor, and the dark outline keeps it readable over a bright stroke.
+*/
+@media (hover: hover) and (pointer: fine) {
+  .surface {
+    cursor:
+      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%3E%3Cg%20transform%3D%22rotate%2845%2014%2014%29%22%20stroke%3D%22rgba%280%2C0%2C0%2C.55%29%22%20stroke-width%3D%221.1%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M11.4%205.6a2.6%202.6%200%200%201%205.2%200v11.9h-5.2z%22%20fill%3D%22%23ffffff%22%2F%3E%3Cpath%20d%3D%22M11.4%2017.5h5.2v1.7h-5.2z%22%20fill%3D%22%23c9ccd1%22%2F%3E%3Cpath%20d%3D%22M11.4%2019.2h5.2L14%2024.8z%22%20fill%3D%22%23f4f5f7%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 7 21,
+      crosshair;
+  }
 }
 
 /* --- The floating instrument ------------------------------------------- */
@@ -176,6 +188,41 @@ body {
   background: var(--hair);
 }
 
+/*
+  The speed strip shown during playback. Same glass as the toolbar, parked
+  directly above it so the control is under the thumb while it plays.
+*/
+.playbar {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + var(--bar-h) + 0.75rem);
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: fit-content;
+  max-width: calc(100vw - 1.5rem);
+  margin-inline: auto;
+  padding: 0.3125rem 0.75rem;
+  border-radius: 999px;
+  border: 1px solid var(--hair);
+  background: var(--glass);
+  color: var(--ink-dim);
+  backdrop-filter: blur(20px) saturate(140%);
+  -webkit-backdrop-filter: blur(20px) saturate(140%);
+  box-shadow: 0 18px 48px -24px var(--accent);
+}
+
+.playbar .speeds {
+  display: flex;
+  gap: 0.125rem;
+}
+
+.playbar .speed {
+  min-width: 2.25rem;
+}
+
 /* --- Popover panels ----------------------------------------------------- */
 
 /*
@@ -276,7 +323,6 @@ body {
   min-width: 0;
 }
 
-
 .speed {
   padding: 0.4375rem 0.0625rem;
   min-width: 0;
@@ -347,24 +393,6 @@ body {
 
 /* --- Ambient text ------------------------------------------------------- */
 
-.hint {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 50%;
-  width: fit-content;
-  margin-inline: auto;
-  transform: translateY(-50%);
-  margin: 0;
-  font-size: 0.625rem;
-  letter-spacing: 0.5em;
-  text-indent: 0.5em;
-  text-transform: uppercase;
-  color: rgba(255, 255, 255, 0.16);
-  pointer-events: none;
-  animation: breathe 4.5s ease-in-out infinite;
-}
-
 .toast {
   position: absolute;
   left: 0;
@@ -429,16 +457,6 @@ body {
   font-size: 0.6875rem;
   letter-spacing: 0.16em;
   text-transform: uppercase;
-}
-
-@keyframes breathe {
-  0%,
-  100% {
-    opacity: 0.5;
-  }
-  50% {
-    opacity: 1;
-  }
 }
 
 :focus-visible {

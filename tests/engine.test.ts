@@ -218,12 +218,46 @@ describe("resize", () => {
     sized.destroy();
   });
 
-  it("clamps the pixel ratio so the bloom passes stay affordable", () => {
+  it("keeps the ratio within the pixel budget", () => {
     const display = makeDisplay();
     const sized = new NeonEngine(display, () => {});
+    // A small box can afford the full ratio, capped at 4.
     sized.resize(400, 300, 6);
-    expect(display.width).toBe(400 * 2.5);
+    expect(display.width).toBe(1600);
     sized.destroy();
+  });
+
+  it("lowers the ratio on a large canvas rather than blowing the budget", () => {
+    const display = makeDisplay();
+    const sized = new NeonEngine(display, () => {});
+    sized.resize(1600, 1200, 4);
+    expect(display.width * display.height).toBeLessThanOrEqual(6_000_000);
+    // Still sharper than CSS resolution, just not the full 4x.
+    expect(display.width).toBeGreaterThan(1600);
+    expect(display.width).toBeLessThan(1600 * 4);
+    sized.destroy();
+  });
+
+  it("never renders below CSS resolution, however large the canvas", () => {
+    const display = makeDisplay();
+    const sized = new NeonEngine(display, () => {});
+    sized.resize(4000, 3000, 2);
+    expect(display.width).toBe(4000);
+    sized.destroy();
+  });
+
+  it("gives a zoomed-in view a sharper ratio than the same window unzoomed", () => {
+    const wide = makeDisplay();
+    const wideEngine = new NeonEngine(wide, () => {});
+    wideEngine.resize(1366, 1024, 4);
+
+    const zoomed = makeDisplay();
+    const zoomedEngine = new NeonEngine(zoomed, () => {});
+    zoomedEngine.resize(683, 512, 4);
+
+    expect(zoomed.width / 683).toBeGreaterThan(wide.width / 1366);
+    wideEngine.destroy();
+    zoomedEngine.destroy();
   });
 
   it("treats a missing ratio as 1", () => {

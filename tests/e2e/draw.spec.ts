@@ -287,16 +287,29 @@ test("play mode locks the canvas so a stray tap leaves no dots", async ({ page }
   expect(await litPixels(page)).toBeGreaterThan(drawn);
 });
 
-test("replay speed can be changed while it is running", async ({ page }) => {
-  await stroke(page, { pointerType: "pen" });
-  await page.getByRole("button", { name: "Replay the drawing" }).click();
-
+test("the speed control is on screen while it plays, and takes effect live", async ({
+  page,
+}) => {
+  // A slow speed keeps the replay running long enough to interact with.
   await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("radio", { name: "3 times speed" }).click();
+  await page.getByRole("radio", { name: "0.1 times speed", exact: true }).click();
   await page.keyboard.press("Escape");
 
-  // Still playing, now faster - the control is live, not next-run only.
-  await expect(page.getByRole("button", { name: /Animation/ })).toBeVisible();
+  await stroke(page, { pointerType: "pen" });
+  await expect(page.locator(".playbar")).toBeHidden();
+
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  const playbar = page.locator(".playbar");
+  await expect(playbar).toBeVisible();
+  await expect(playbar.getByRole("radio")).toHaveCount(7);
+
+  // Switching to the fastest speed from the playbar ends the replay quickly,
+  // which is the observable proof that it applied to the run in flight.
+  await playbar.getByRole("radio", { name: "3 times speed", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeVisible({
+    timeout: 15_000,
+  });
+  await expect(playbar).toBeHidden();
 });
 
 test("keyboard undo and redo", async ({ page }) => {

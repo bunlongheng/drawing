@@ -112,15 +112,32 @@ const CLIP_TYPES = [
   "video/webm",
 ];
 
-/** Retina is plenty; beyond it the bloom passes cost more than they show. */
-const MAX_DPR = 2.5;
+/**
+ * Resolution is governed by a pixel budget rather than a fixed ratio.
+ *
+ * A flat cap blurred the drawing exactly when someone zoomed in: the browser
+ * raises devicePixelRatio and shrinks the CSS box, and the cap threw the extra
+ * detail away. A budget does the opposite - zooming shrinks the CSS area, which
+ * buys a higher ratio and a sharper line, while a large window stays within
+ * what six full-screen canvases can afford.
+ */
+const MAX_CANVAS_PIXELS = 6_000_000;
+const MAX_DPR = 4;
+
+function fitDpr(width: number, height: number, dpr: number): number {
+  const area = Math.max(1, width * height);
+  const budgeted = Math.min(dpr || 1, MAX_DPR, Math.sqrt(MAX_CANVAS_PIXELS / area));
+  // Never render below CSS resolution: the budget caps sharpness, it must not
+  // make a very large canvas soft.
+  return Math.max(1, budgeted);
+}
 
 /**
- * Blur is a low-frequency effect, so the blurred passes are accumulated at a
- * quarter resolution and scaled back up. Sixteen times fewer pixels, and no
- * visible difference in a glow.
+ * Blurred passes are accumulated at half resolution and scaled back up. A
+ * quarter was cheaper still, but the upscale showed: the falloff went chunky
+ * against a sharp core, which reads as a blurry drawing rather than a soft one.
  */
-const BLOOM_SCALE = 4;
+const BLOOM_SCALE = 2;
 
 /**
  * Undo cannot subtract additive pixels, so it rebuilds from the stroke list.
@@ -216,7 +233,7 @@ export class NeonEngine {
 
   /** Resize to CSS pixel dimensions, preserving artwork by re-rendering it. */
   resize(width: number, height: number, dpr: number): void {
-    const nextDpr = Math.min(dpr || 1, MAX_DPR);
+    const nextDpr = fitDpr(width, height, dpr);
     if (width === this.width && height === this.height && nextDpr === this.dpr) return;
     this.width = width;
     this.height = height;

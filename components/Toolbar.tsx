@@ -138,7 +138,33 @@ export function Toolbar({
     onClear();
   };
 
+  const speedPicker = (
+    <RadioGroup
+      label="Replay speed"
+      options={REPLAY_SPEEDS.map((value) => ({
+        id: String(value),
+        label: `${value} times speed`,
+      }))}
+      value={String(replaySpeed)}
+      onChange={(id) => onReplaySpeedChange(Number(id))}
+      className="speeds"
+      optionClassName="speed"
+      titleOnly
+    >
+      {(option) => <span className="micro">{option.id}</span>}
+    </RadioGroup>
+  );
+
   return (
+    <>
+      {/* Playback is the one time speed matters, so surface it then. */}
+      {state.replaying && (
+        <div className="playbar" style={{ "--accent": accent } as React.CSSProperties}>
+          <SpeedIcon className="fx-icon" aria-hidden />
+          {speedPicker}
+        </div>
+      )}
+
     <div
       ref={barRef}
       className="toolbar"
@@ -247,20 +273,7 @@ export function Toolbar({
 
           <div className="fx-speed">
             <SpeedIcon className="fx-icon" aria-hidden />
-            <RadioGroup
-              label="Replay speed"
-              options={REPLAY_SPEEDS.map((value) => ({
-                id: String(value),
-                label: `${value} times speed`,
-              }))}
-              value={String(replaySpeed)}
-              onChange={(id) => onReplaySpeedChange(Number(id))}
-              className="speeds"
-              optionClassName="speed"
-              titleOnly
-            >
-              {(option) => <span className="micro">{option.id}</span>}
-            </RadioGroup>
+            {!state.replaying && speedPicker}
 
           </div>
         </div>
@@ -350,5 +363,6 @@ export function Toolbar({
       </button>
       </span>
     </div>
+    </>
   );
 }

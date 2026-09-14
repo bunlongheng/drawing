@@ -298,12 +298,6 @@ export function NeonCanvas() {
         onContextMenu={(event) => event.preventDefault()}
       />
 
-      {state.isEmpty && !drawing && (
-        <p className="hint" aria-hidden>
-          Draw
-        </p>
-      )}
-
       <Toolbar
         brush={brush}
         onBrushChange={(patch) => setBrush((current) => ({ ...current, ...patch }))}
