@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Brush, EngineState } from "@/lib/engine";
 import {
   COLORS,
@@ -18,15 +18,22 @@ import { Popover } from "./Popover";
 import { RadioGroup } from "./RadioGroup";
 import { StrokePreview } from "./StrokePreview";
 import {
+  BreatheIcon,
   ClearIcon,
   DownloadIcon,
+  FireflyIcon,
+  FlickerIcon,
+  FlowIcon,
+  OffIcon,
   PlayIcon,
   RedoIcon,
   ShareIcon,
   SizeIcon,
   SparkIcon,
+  SpeedIcon,
   StopIcon,
   UndoIcon,
+  VideoIcon,
 } from "./icons";
 
 export const REPLAY_SPEEDS = [0.1, 0.25, 0.5, 1, 1.5, 2, 3] as const;
@@ -55,6 +62,16 @@ type ToolbarProps = {
 
 const CLEAR_ARM_MS = 2600;
 
+/** An icon per effect: the picker carries no prose, only pictures. */
+const EFFECT_ICONS: Record<EffectId, (props: { className?: string }) => React.ReactElement> = {
+  off: OffIcon,
+  breathe: BreatheIcon,
+  flicker: FlickerIcon,
+  sparkle: SparkIcon,
+  firefly: FireflyIcon,
+  flow: FlowIcon,
+};
+
 /** CSS fill for an ink swatch: flat for a solid, a sweep for a gradient. */
 function swatchFill(option: NeonColor): string {
   const from = inkColor(option.hsl, 0);
@@ -82,6 +99,7 @@ export function Toolbar({
   onDownload,
   onShare,
 }: ToolbarProps) {
+  const barRef = useRef<HTMLDivElement>(null);
   const [clearArmed, setClearArmed] = useState(false);
   // Arming is only meaningful while there is something to clear.
   const armed = clearArmed && !state.isEmpty;
@@ -89,6 +107,20 @@ export function Toolbar({
   const color = findColor(brush.colorId);
   // Gradients light the chrome with their first stop.
   const accent = inkColor(color.hsl, 0);
+
+  // Panels and toasts sit above the toolbar, which wraps to two rows on a
+  // phone. Measuring beats guessing at the row count from a breakpoint.
+  useEffect(() => {
+    const bar = barRef.current;
+    if (!bar) return;
+    const publish = () => {
+      document.documentElement.style.setProperty("--bar-h", `${bar.offsetHeight}px`);
+    };
+    publish();
+    const observer = new ResizeObserver(publish);
+    observer.observe(bar);
+    return () => observer.disconnect();
+  }, []);
 
   useEffect(() => {
     if (!clearArmed) return;
@@ -108,6 +140,7 @@ export function Toolbar({
 
   return (
     <div
+      ref={barRef}
       className="toolbar"
       data-dimmed={dimmed || undefined}
       style={{ "--accent": accent } as React.CSSProperties}
@@ -125,16 +158,9 @@ export function Toolbar({
           onChange={(styleId) => onBrushChange({ styleId })}
           className="styles"
           optionClassName="swatch"
+          titleOnly
         >
-          {(option) => {
-            const preset = findStyle(option.id);
-            return (
-              <>
-                <StrokePreview style={preset} colorId={color.id} />
-                <span className="micro">{preset.name}</span>
-              </>
-            );
-          }}
+          {(option) => <StrokePreview style={findStyle(option.id)} colorId={color.id} />}
         </RadioGroup>
       </Popover>
 
@@ -176,7 +202,7 @@ export function Toolbar({
       <Popover
         label={`Brush size: ${brush.size}`}
         accent={accent}
-        trigger={<SizeIcon className="h-5 w-5" />}
+        trigger={<SizeIcon />}
       >
         <div className="flex w-56 items-center gap-3">
           <input
@@ -201,7 +227,7 @@ export function Toolbar({
       <Popover
         label={`Animation: ${findEffect(effectId).name}`}
         accent={accent}
-        trigger={<SparkIcon className="h-5 w-5" />}
+        trigger={<SparkIcon />}
       >
         <div className="fx-panel">
           <RadioGroup
@@ -211,20 +237,16 @@ export function Toolbar({
             onChange={(id) => onEffectChange(id as EffectId)}
             className="effects"
             optionClassName="fx"
+            titleOnly
           >
             {(option) => {
-              const effect = findEffect(option.id);
-              return (
-                <>
-                  <span className="fx-name">{effect.name}</span>
-                  <span className="micro">{effect.hint}</span>
-                </>
-              );
+              const Icon = EFFECT_ICONS[option.id as EffectId];
+              return <Icon className="fx-icon" />;
             }}
           </RadioGroup>
 
           <div className="fx-speed">
-            <span className="micro">Replay speed</span>
+            <SpeedIcon className="fx-icon" aria-hidden />
             <RadioGroup
               label="Replay speed"
               options={REPLAY_SPEEDS.map((value) => ({
@@ -237,23 +259,9 @@ export function Toolbar({
               optionClassName="speed"
               titleOnly
             >
-              {(option) => <span className="micro">{option.id}x</span>}
+              {(option) => <span className="micro">{option.id}</span>}
             </RadioGroup>
 
-            <button
-              type="button"
-              className="fx-export"
-              onClick={onExportClip}
-              disabled={state.isEmpty || !canRecord || busy}
-              title={
-                canRecord
-                  ? "Record the replay as a video"
-                  : "This browser cannot record video"
-              }
-            >
-              <DownloadIcon className="h-4 w-4" />
-              <span className="micro">Export video</span>
-            </button>
           </div>
         </div>
       </Popover>
@@ -271,7 +279,7 @@ export function Toolbar({
         aria-label="Undo"
         title="Undo"
       >
-        <UndoIcon className="h-5 w-5" />
+        <UndoIcon />
       </button>
       <button
         type="button"
@@ -281,7 +289,7 @@ export function Toolbar({
         aria-label="Redo"
         title="Redo"
       >
-        <RedoIcon className="h-5 w-5" />
+        <RedoIcon />
       </button>
       <button
         type="button"
@@ -292,7 +300,7 @@ export function Toolbar({
         title="Clear"
         data-armed={armed || undefined}
       >
-        <ClearIcon className="h-5 w-5" />
+        <ClearIcon />
       </button>
 
       <span className="divider tight" aria-hidden />
@@ -306,7 +314,18 @@ export function Toolbar({
         title={state.replaying ? "Stop" : "Replay"}
         data-active={state.replaying || undefined}
       >
-        {state.replaying ? <StopIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+        {state.replaying ? <StopIcon /> : <PlayIcon />}
+      </button>
+
+      <button
+        type="button"
+        className="tool-btn"
+        onClick={onExportClip}
+        disabled={state.isEmpty || !canRecord || busy}
+        aria-label={canRecord ? "Export video" : "This browser cannot record video"}
+        title={canRecord ? "Export video" : "This browser cannot record video"}
+      >
+        <VideoIcon />
       </button>
 
       <button
@@ -317,7 +336,7 @@ export function Toolbar({
         aria-label="Download PNG"
         title="Download"
       >
-        <DownloadIcon className="h-5 w-5" />
+        <DownloadIcon />
       </button>
       <button
         type="button"
@@ -327,7 +346,7 @@ export function Toolbar({
         aria-label="Share"
         title="Share"
       >
-        <ShareIcon className="h-5 w-5" />
+        <ShareIcon />
       </button>
       </span>
     </div>

@@ -153,7 +153,8 @@ To draw on an iPad on the same network, run `npm run dev -- -H 0.0.0.0` and brow
 | Change style, ink or size | The three controls on the left of the toolbar |
 | Undo / redo | Toolbar, or `Cmd+Z` and `Cmd+Shift+Z` (`Ctrl` on Windows and Linux) |
 | Clear | Tap the bin, then tap again to confirm |
-| Animate, set replay speed, export video | The spark control in the toolbar |
+| Animate or set replay speed | The spark control in the toolbar |
+| Export the replay as video | The camera button, next to play |
 | Replay the drawing | The play button; the canvas locks until you stop it |
 | Save a PNG | Toolbar, or `Cmd+S` |
 | Share | The share button - native sheet where available, otherwise a download |

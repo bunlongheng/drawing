@@ -86,6 +86,73 @@ export function SparkIcon({ className }: IconProps) {
   );
 }
 
+export function OffIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="10" cy="10" r="6.2" />
+      <path d="M5.6 14.4 14.4 5.6" />
+    </svg>
+  );
+}
+
+export function BreatheIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="10" cy="10" r="2" />
+      <path d="M13.6 6.4a5 5 0 0 1 0 7.2M6.4 13.6a5 5 0 0 1 0-7.2" />
+      <path d="M16 4a8.5 8.5 0 0 1 0 12M4 16A8.5 8.5 0 0 1 4 4" opacity=".5" />
+    </svg>
+  );
+}
+
+export function FlickerIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M11 2.6 5.4 11h3.8l-1 6.4L14 9h-3.8z" />
+    </svg>
+  );
+}
+
+export function FireflyIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <circle cx="6" cy="13" r="1.9" />
+      <circle cx="13.4" cy="7.2" r="1.4" />
+      <circle cx="14.6" cy="14" r="1" />
+      <path d="M7.6 11.2c1-1.4 2.2-2.4 3.6-3" opacity=".5" />
+    </svg>
+  );
+}
+
+export function FlowIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M2.6 12.4c2.4 0 3.2-4.8 5.6-4.8s3.2 4.8 5.6 4.8" />
+      <path d="M14.4 12.4h2.8" />
+      <path d="M15.4 10.6 17.4 12.4 15.4 14.2" />
+    </svg>
+  );
+}
+
+export function VideoIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="2.6" y="5" width="10.4" height="10" rx="2" />
+      <path d="M13 9.4 17.4 6.8v6.4L13 10.6z" />
+    </svg>
+  );
+}
+
+export function SpeedIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M3.6 14.4a7.2 7.2 0 1 1 12.8 0" />
+      <path d="M10 10.6 13.2 7.6" />
+      <circle cx="10" cy="11.4" r="1" />
+    </svg>
+  );
+}
+
 export function SizeIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

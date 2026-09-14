@@ -9,7 +9,7 @@ test("every neon style can be picked", async ({ page }) => {
   const options = page.getByRole("radio");
   await expect(options).toHaveCount(4);
 
-  await options.filter({ hasText: "Halo" }).click();
+  await page.getByRole("radio", { name: "Halo" }).click();
   await expect(page.getByRole("button", { name: "Neon style: Halo" })).toBeVisible();
 });
 
