@@ -1,5 +1,5 @@
 /** Speeds a replay can run at. Shared by the toolbar, the playbar and storage. */
-export const REPLAY_SPEEDS = [0.1, 0.25, 0.5, 1] as const;
+export const REPLAY_SPEEDS = [0.1, 0.25, 0.5, 1, 2, 3] as const;
 
 export type ReplaySpeed = (typeof REPLAY_SPEEDS)[number];
 

@@ -17,7 +17,7 @@ Neon on black. Pick up an Apple Pencil, draw, and watch the line light up.
 - **Gets out of the way.** Pure black canvas, one small toolbar that fades while you draw.
 - **Lets you rest your hand.** Once it has seen a Pencil, your palm is ignored.
 - **Comes alive.** Fireflies drift past your lines, sparks glint off them, a current runs through the tube. Or switch it off and let it sit still.
-- **Plays itself back.** Press play and the drawing redraws itself, slowly enough for a kid to follow, then saves the whole thing as an MP4.
+- **Plays itself back.** Press play and the drawing redraws itself, slowly enough for a kid to follow, at whatever pace suits, then saves the whole thing as an MP4.
 - **Saves it.** PNG at full resolution, straight into the share sheet.
 
 ![The four neon styles](docs/screenshots/styles.png)

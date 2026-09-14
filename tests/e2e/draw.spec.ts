@@ -335,7 +335,7 @@ test("the speed control is on screen while it plays, and takes effect live", asy
 
   // Winding the playbar slider to the top ends the replay quickly, which is the
   // observable proof that it applied to the run already in flight.
-  await playbar.getByRole("slider", { name: "Replay speed" }).fill("3");
+  await playbar.getByRole("slider", { name: "Replay speed" }).fill("5");
   await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeVisible({
     timeout: 15_000,
   });
