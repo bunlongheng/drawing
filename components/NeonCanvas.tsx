@@ -9,12 +9,15 @@ import {
   findEffect,
 } from "@/lib/effects";
 import { DEFAULT_BRUSH, normaliseBrush } from "@/lib/neon";
-import { REPLAY_SPEEDS, Toolbar } from "./Toolbar";
+import { DEFAULT_REPLAY_SPEED, normaliseSpeed } from "@/lib/replay";
+import { Toolbar } from "./Toolbar";
 
 const STORAGE_KEY = "drawing.brush";
 const EFFECT_KEY = "drawing.effect";
 const SPEED_KEY = "drawing.speed";
 const TOAST_MS = 2400;
+/** Below this, a press that never moved is treated as a stray tap. */
+const TAP_MS = 140;
 
 /** Animation is motion; honour the system setting and stay still. */
 function prefersStill(): boolean {
@@ -35,10 +38,9 @@ function readStoredEffect(): EffectId {
 
 function readStoredSpeed(): number {
   try {
-    const stored = Number(window.localStorage.getItem(SPEED_KEY));
-    return REPLAY_SPEEDS.includes(stored as (typeof REPLAY_SPEEDS)[number]) ? stored : 1;
+    return normaliseSpeed(window.localStorage.getItem(SPEED_KEY));
   } catch {
-    return 1;
+    return DEFAULT_REPLAY_SPEED;
   }
 }
 
@@ -58,6 +60,9 @@ export function NeonCanvas() {
   const penSeen = useRef(false);
   /** Cached at pointerdown: the canvas is fixed, so it cannot move mid-stroke. */
   const canvasRect = useRef<DOMRect | null>(null);
+  /** For telling a deliberate dot from a stray tap on the way to a control. */
+  const pressStart = useRef(0);
+  const moved = useRef(false);
 
   // Rendered client-side only (see NeonCanvasClient), so stored preferences can
   // seed the very first render without a hydration mismatch.
@@ -244,6 +249,8 @@ export function NeonCanvas() {
     if (engine.state.replaying) return;
 
     activePointer.current = event.pointerId;
+    pressStart.current = performance.now();
+    moved.current = false;
     canvas.setPointerCapture(event.pointerId);
     setDrawing(true);
 
@@ -270,6 +277,7 @@ export function NeonCanvas() {
       const { x, y } = pointFrom(sample, rect);
       engine.extend(x, y, sample.pressure, isPen);
     }
+    moved.current = true;
   };
 
   const handlePointerEnd = (event: React.PointerEvent<HTMLCanvasElement>) => {
@@ -277,7 +285,12 @@ export function NeonCanvas() {
     activePointer.current = null;
     setDrawing(false);
     canvasRef.current?.releasePointerCapture?.(event.pointerId);
-    engineRef.current?.end();
+
+    // A flick that never moved is almost always a miss on the way to a
+    // control, not someone dotting an i. Holding still briefly still draws one.
+    const brief = performance.now() - pressStart.current < TAP_MS;
+    if (!moved.current && brief) engineRef.current?.cancel();
+    else engineRef.current?.end();
   };
 
   return (

@@ -48,10 +48,9 @@ export function unionRect(a: Rect | null, b: Rect | null): Rect | null {
 /**
  * How far the widest blurred pass of a style reaches, in device px.
  *
- * A Gaussian is effectively gone by 3 sigma, but the last half sigma is below
- * one 8-bit level here, and dropping it shrinks the rebuilt box by about 17% -
- * which matters because a wide style at a large brush size can otherwise pad
- * past the edge of the canvas and turn every frame into full-canvas work.
+ * 2.5 rather than the textbook 3: the last half sigma falls below one 8-bit
+ * level here, and it shrinks the rebuilt rectangle by about 17%. Checked at
+ * 10x gain on the largest brush - the render is byte-identical to 3.2 sigma.
  */
 export const BLOOM_SIGMA = 2.5;
 

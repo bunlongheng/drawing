@@ -14,6 +14,7 @@ import {
   inkColor,
 } from "@/lib/neon";
 import { EFFECTS, type EffectId, findEffect } from "@/lib/effects";
+import { SpeedSlider } from "./SpeedSlider";
 import { Popover } from "./Popover";
 import { RadioGroup } from "./RadioGroup";
 import { StrokePreview } from "./StrokePreview";
@@ -31,12 +32,9 @@ import {
   SizeIcon,
   SparkIcon,
   SpeedIcon,
-  StopIcon,
   UndoIcon,
   VideoIcon,
 } from "./icons";
-
-export const REPLAY_SPEEDS = [0.1, 0.25, 0.5, 1, 1.5, 2, 3] as const;
 
 type ToolbarProps = {
   brush: Brush;
@@ -138,22 +136,7 @@ export function Toolbar({
     onClear();
   };
 
-  const speedPicker = (
-    <RadioGroup
-      label="Replay speed"
-      options={REPLAY_SPEEDS.map((value) => ({
-        id: String(value),
-        label: `${value} times speed`,
-      }))}
-      value={String(replaySpeed)}
-      onChange={(id) => onReplaySpeedChange(Number(id))}
-      className="speeds"
-      optionClassName="speed"
-      titleOnly
-    >
-      {(option) => <span className="micro">{option.id}</span>}
-    </RadioGroup>
-  );
+  const speedPicker = <SpeedSlider value={replaySpeed} onChange={onReplaySpeedChange} />;
 
   return (
     <>
@@ -244,7 +227,6 @@ export function Toolbar({
               })
             }
             className="range"
-            style={{ accentColor: accent }}
           />
           <span className="micro tabular-nums w-6 text-right">{brush.size}</span>
         </div>
@@ -273,7 +255,7 @@ export function Toolbar({
 
           <div className="fx-speed">
             <SpeedIcon className="fx-icon" aria-hidden />
-            {!state.replaying && speedPicker}
+            {speedPicker}
 
           </div>
         </div>
@@ -325,9 +307,9 @@ export function Toolbar({
         disabled={state.isEmpty}
         aria-label={state.replaying ? "Stop replay" : "Replay the drawing"}
         title={state.replaying ? "Stop" : "Replay"}
-        data-active={state.replaying || undefined}
+        data-playing={state.replaying || undefined}
       >
-        {state.replaying ? <StopIcon /> : <PlayIcon />}
+        <PlayIcon />
       </button>
 
       <button

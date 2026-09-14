@@ -170,6 +170,14 @@ body {
   border-color: var(--hair-strong);
 }
 
+/* Playing: the button stays lit in the ink colour until it is pressed again. */
+.tool-btn[data-playing] {
+  color: #fff;
+  background: color-mix(in srgb, var(--accent) 24%, transparent);
+  border-color: var(--accent);
+  box-shadow: 0 0 16px -4px var(--accent);
+}
+
 .tool-btn[data-armed] {
   color: #fb7185;
   background: rgba(251, 113, 133, 0.14);
@@ -214,14 +222,7 @@ body {
   box-shadow: 0 18px 48px -24px var(--accent);
 }
 
-.playbar .speeds {
-  display: flex;
-  gap: 0.125rem;
-}
-
-.playbar .speed {
-  min-width: 2.25rem;
-}
+.playbar 
 
 /* --- Popover panels ----------------------------------------------------- */
 
@@ -323,14 +324,6 @@ body {
   min-width: 0;
 }
 
-.speed {
-  padding: 0.4375rem 0.0625rem;
-  min-width: 0;
-  text-align: center;
-  border-radius: 0.5rem;
-  border: 1px solid transparent;
-  transition: background 160ms ease, border-color 160ms ease;
-}
 
 .speed:hover {
   background: rgba(255, 255, 255, 0.05);
@@ -386,9 +379,57 @@ body {
 
 .range {
   flex: 1;
+  width: 100%;
   height: 1.5rem;
   background: transparent;
+  /* Both sliders take the ink colour instead of the browser default blue. */
+  accent-color: var(--accent);
   cursor: pointer;
+}
+
+/* Replay speed: a slider that stops on each allowed speed. */
+.speed-slider {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  flex: 1;
+  min-width: 0;
+}
+
+.speed-track {
+  position: relative;
+  flex: 1;
+  min-width: 7.5rem;
+  display: flex;
+  align-items: center;
+}
+
+.speed-ticks {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.speed-tick {
+  position: absolute;
+  top: 50%;
+  width: 0.25rem;
+  height: 0.25rem;
+  margin-top: -0.125rem;
+  margin-left: -0.125rem;
+  border-radius: 999px;
+  background: var(--hair-strong);
+}
+
+.speed-tick[data-passed] {
+  background: var(--accent);
+}
+
+.speed-read {
+  min-width: 1.75rem;
+  text-align: right;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
 }
 
 /* --- Ambient text ------------------------------------------------------- */

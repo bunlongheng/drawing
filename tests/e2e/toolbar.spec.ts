@@ -58,29 +58,30 @@ test("an animation can be chosen and is remembered", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
 });
 
-test("offers the full range of replay speeds", async ({ page }) => {
+test("the speed slider stops on each allowed speed", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
-  await expect(
-    page.getByRole("radiogroup", { name: "Replay speed" }).getByRole("radio"),
-  ).toHaveCount(7);
-  for (const speed of ["0.1", "0.25", "0.5", "1", "1.5", "2", "3"]) {
-    // Exact: "1 times speed" would otherwise also match "0.1 times speed".
-    await expect(
-      page.getByRole("radio", { name: `${speed} times speed`, exact: true }),
-    ).toBeVisible();
+  const slider = page.getByRole("slider", { name: "Replay speed" });
+  await expect(slider).toHaveAttribute("min", "0");
+  await expect(slider).toHaveAttribute("max", "5");
+  await expect(slider).toHaveAttribute("step", "1");
+
+  const speeds = ["0.1", "0.25", "0.5", "1", "1.5", "2"];
+  for (const [index, speed] of speeds.entries()) {
+    await slider.fill(String(index));
+    await expect(slider).toHaveAttribute("aria-valuetext", `${speed} times speed`);
   }
 });
 
 test("replay speed is remembered", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("radio", { name: "1.5 times speed" }).click();
+  await page.getByRole("slider", { name: "Replay speed" }).fill("4");
   await page.keyboard.press("Escape");
 
   await page.reload();
   await page.getByRole("button", { name: /Animation/ }).click();
-  await expect(page.getByRole("radio", { name: "1.5 times speed" })).toHaveAttribute(
-    "aria-checked",
-    "true",
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveAttribute(
+    "aria-valuetext",
+    "1.5 times speed",
   );
 });
 

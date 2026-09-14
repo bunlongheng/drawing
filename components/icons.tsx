@@ -68,14 +68,6 @@ export function PlayIcon({ className }: IconProps) {
   );
 }
 
-export function StopIcon({ className }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
-    </svg>
-  );
-}
-
 export function SparkIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

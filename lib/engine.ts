@@ -296,6 +296,15 @@ export class NeonEngine {
     this.scheduleFrame();
   }
 
+  /** Drop the stroke in progress without committing it. */
+  cancel(): void {
+    if (!this.current) return;
+    this.current = null;
+    this.lastSample = null;
+    this.clearScratch();
+    this.requestPaint();
+  }
+
   end(): void {
     const stroke = this.current;
     this.current = null;

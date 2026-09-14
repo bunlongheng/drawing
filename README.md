@@ -34,7 +34,7 @@ A minimal neon sketchpad for Apple Pencil. Pure black canvas, pressure-sensitive
 - **4 neon styles,** chosen to differ in shape rather than in degree: **Classic** (white-hot core in a saturated halo), **Halo** (a fat soft light with no hard centre), **Laser** (a razor line with a fierce tight glow) and **Wire** (a flat coloured line, barely lit).
 - **8 gradient inks.** Every ink is two stops the stroke eases between as it travels, so a line shifts colour along its length: Sunset, Ember, Toxic, Mint, Lagoon, Ultraviolet, Vapor and Frost.
 - **6 ambient animations.** Off, Breathe (the drawing swells and dims), Flicker (an old sign), Sparkle (star glints), Firefly (motes drifting near the lines) and Flow (a bright head running the strokes like current through a tube).
-- **Replay.** Press play and the drawing redraws itself stroke by stroke, anywhere from 0.1x to 3x, so someone can watch how it was made. The canvas locks while it plays, and the speed can be changed mid-playback.
+- **Replay.** Press play and the drawing redraws itself stroke by stroke, from 0.1x to 2x on a slider that snaps to each speed, so someone can watch how it was made. The canvas locks while it plays, and the slider stays on screen so the pace can be changed mid-playback.
 - **Export the replay as video.** Record the playback to MP4 (H.264) where the browser supports it, WebM otherwise - captured at up to 1920px and 30fps, so the file stays small without looking soft.
 - **A 2-48 px brush,** remembered between sessions along with the style and ink, and validated on the way back in.
 - **Always black.** The canvas is pure `#000000`, so the PNG you export is exactly what you drew.

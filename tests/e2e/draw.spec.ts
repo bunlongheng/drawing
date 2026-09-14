@@ -175,6 +175,37 @@ test("the core stays saturated along a whole curved stroke", async ({ page }) =>
   expect(dark, `unlit points on the stroke: ${dark.slice(0, 12).join(", ")}`).toEqual([]);
 });
 
+test("a quick tap leaves nothing, a held press leaves a dot", async ({ page }) => {
+  const tap = (hold: number) =>
+    page.evaluate(async (ms) => {
+      const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
+      const rect = canvas.getBoundingClientRect();
+      const fire = (type: string) =>
+        canvas.dispatchEvent(
+          new PointerEvent(type, {
+            pointerId: 1,
+            pointerType: "pen",
+            pressure: 0.9,
+            isPrimary: true,
+            bubbles: true,
+            clientX: rect.left + 200,
+            clientY: rect.top + 200,
+          }),
+        );
+      fire("pointerdown");
+      await new Promise((resolve) => setTimeout(resolve, ms));
+      fire("pointerup");
+    }, hold);
+
+  await tap(20);
+  expect(await litPixels(page)).toBe(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+
+  await tap(320);
+  expect(await litPixels(page)).toBeGreaterThan(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+});
+
 test("touch draws when no pen has been used", async ({ page }) => {
   await stroke(page, { pointerType: "touch" });
   expect(await litPixels(page)).toBeGreaterThan(500);
@@ -292,7 +323,7 @@ test("the speed control is on screen while it plays, and takes effect live", asy
 }) => {
   // A slow speed keeps the replay running long enough to interact with.
   await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("radio", { name: "0.1 times speed", exact: true }).click();
+  await page.getByRole("slider", { name: "Replay speed" }).fill("0");
   await page.keyboard.press("Escape");
 
   await stroke(page, { pointerType: "pen" });
@@ -301,11 +332,10 @@ test("the speed control is on screen while it plays, and takes effect live", asy
   await page.getByRole("button", { name: "Replay the drawing" }).click();
   const playbar = page.locator(".playbar");
   await expect(playbar).toBeVisible();
-  await expect(playbar.getByRole("radio")).toHaveCount(7);
 
-  // Switching to the fastest speed from the playbar ends the replay quickly,
-  // which is the observable proof that it applied to the run in flight.
-  await playbar.getByRole("radio", { name: "3 times speed", exact: true }).click();
+  // Winding the playbar slider to the top ends the replay quickly, which is the
+  // observable proof that it applied to the run already in flight.
+  await playbar.getByRole("slider", { name: "Replay speed" }).fill("5");
   await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeVisible({
     timeout: 15_000,
   });
