@@ -1,0 +1,15 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    name: "Drawing - neon sketchpad",
+    short_name: "Drawing",
+    description: "A minimal neon sketchpad for Apple Pencil.",
+    start_url: "/",
+    display: "standalone",
+    orientation: "any",
+    background_color: "#000000",
+    theme_color: "#000000",
+    icons: [{ src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" }],
+  };
+}
