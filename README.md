@@ -80,7 +80,7 @@ app/
   page.tsx           renders the canvas
   globals.css        design tokens and the toolbar styling
   manifest.ts        Add to Home Screen
-  icon.svg           favicon
+  icon.png           app icon, shared with the dashboard and Stickies
 components/
   NeonCanvas.tsx     pointer handling, palm rejection, shortcuts, export
   NeonCanvasClient.tsx  client-only boundary (a canvas app has nothing to server render)
