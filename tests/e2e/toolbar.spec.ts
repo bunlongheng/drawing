@@ -44,7 +44,7 @@ test("panels close on Escape and on an outside click", async ({ page }) => {
   await expect(page.getByRole("dialog")).toBeHidden();
 
   await trigger.click();
-  await page.locator("canvas").click({ position: { x: 40, y: 40 } });
+  await page.locator("canvas.surface").click({ position: { x: 40, y: 40 } });
   await expect(page.getByRole("dialog")).toBeHidden();
 });
 

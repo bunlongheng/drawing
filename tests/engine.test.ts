@@ -113,6 +113,57 @@ describe("undo and redo", () => {
   });
 });
 
+describe("checkpointing", () => {
+  // Undo resumes from a snapshot taken every 20 strokes, so the paths worth
+  // exercising are: below the threshold, above it, and undoing back past it.
+  const draw = (n: number) => {
+    for (let i = 0; i < n; i += 1) drawStroke(4, 20 + (i % 20) * 30, 20 + Math.floor(i / 20) * 40);
+  };
+
+  it("keeps the stacks correct below the snapshot threshold", () => {
+    draw(5);
+    for (let i = 0; i < 5; i += 1) engine.undo();
+    expect(engine.state).toMatchObject({ canUndo: false, canRedo: true, isEmpty: true });
+  });
+
+  it("keeps the stacks correct across a snapshot", () => {
+    draw(45);
+    expect(engine.state.canUndo).toBe(true);
+    for (let i = 0; i < 30; i += 1) engine.undo();
+    expect(engine.state).toMatchObject({ canUndo: true, canRedo: true, isEmpty: false });
+
+    for (let i = 0; i < 15; i += 1) engine.undo();
+    expect(engine.state).toMatchObject({ canUndo: false, canRedo: true, isEmpty: true });
+  });
+
+  it("redoes all the way back up after undoing past a snapshot", () => {
+    draw(45);
+    for (let i = 0; i < 45; i += 1) engine.undo();
+    expect(engine.state.isEmpty).toBe(true);
+    for (let i = 0; i < 45; i += 1) engine.redo();
+    expect(engine.state).toMatchObject({ canUndo: true, canRedo: false, isEmpty: false });
+  });
+
+  it("drops the snapshot on clear, so the next rebuild starts clean", () => {
+    draw(45);
+    engine.clear();
+    expect(engine.state).toEqual({ canUndo: false, canRedo: false, isEmpty: true });
+    draw(3);
+    engine.undo();
+    engine.undo();
+    engine.undo();
+    expect(engine.state.isEmpty).toBe(true);
+  });
+
+  it("survives a resize taken after a snapshot", () => {
+    draw(45);
+    engine.resize(640, 480, 1);
+    expect(engine.state.canUndo).toBe(true);
+    for (let i = 0; i < 45; i += 1) engine.undo();
+    expect(engine.state.isEmpty).toBe(true);
+  });
+});
+
 describe("clear", () => {
   it("drops both stacks", () => {
     drawStroke();

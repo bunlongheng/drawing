@@ -74,6 +74,14 @@ const MAX_DPR = 2.5;
  */
 const BLOOM_SCALE = 4;
 
+/**
+ * Undo cannot subtract additive pixels, so it rebuilds from the stroke list.
+ * A snapshot every N strokes caps that rebuild at N replays instead of all of
+ * them - at 300 strokes an undo measured 582ms before this, and one snapshot
+ * canvas is cheaper than the stutter.
+ */
+const CHECKPOINT_EVERY = 20;
+
 function context(canvas: HTMLCanvasElement): CanvasRenderingContext2D {
   const ctx = canvas.getContext("2d");
   if (!ctx) throw new Error("2D canvas context unavailable");
@@ -92,6 +100,8 @@ export class NeonEngine {
   private readonly tube = document.createElement("canvas");
   private readonly core = document.createElement("canvas");
   private readonly glow = document.createElement("canvas");
+  /** Snapshot of `committed` after `checkpointCount` strokes. Sized on first use. */
+  private readonly checkpoint = document.createElement("canvas");
   /** Downsampled source and accumulator for the blurred passes. */
   private readonly patch = document.createElement("canvas");
   private readonly patchGlow = document.createElement("canvas");
@@ -99,6 +109,8 @@ export class NeonEngine {
   private tubeCtx: CanvasRenderingContext2D;
   private coreCtx: CanvasRenderingContext2D;
   private glowCtx: CanvasRenderingContext2D;
+  private checkpointCtx: CanvasRenderingContext2D;
+  private checkpointCount = 0;
   private patchCtx: CanvasRenderingContext2D;
   private patchGlowCtx: CanvasRenderingContext2D;
 
@@ -131,6 +143,7 @@ export class NeonEngine {
     this.tubeCtx = context(this.tube);
     this.coreCtx = context(this.core);
     this.glowCtx = context(this.glow);
+    this.checkpointCtx = context(this.checkpoint);
     this.patchCtx = context(this.patch);
     this.patchGlowCtx = context(this.patchGlow);
   }
@@ -152,6 +165,9 @@ export class NeonEngine {
     this.tubeCtx = context(this.tube);
     this.coreCtx = context(this.core);
     this.glowCtx = context(this.glow);
+    // Every stroke is about to be repainted at the new size, so the snapshot
+    // is stale by definition.
+    this.checkpointCount = 0;
 
     this.redrawCommitted();
     this.redrawLive();
@@ -216,6 +232,7 @@ export class NeonEngine {
     this.committedCtx.globalCompositeOperation = "source-over";
     this.clearScratch();
 
+    this.maybeCheckpoint();
     this.requestPaint(rect);
     this.emit();
   }
@@ -247,6 +264,7 @@ export class NeonEngine {
     this.redoStack = [];
     this.current = null;
     this.lastSample = null;
+    this.checkpointCount = 0;
     this.committedStale = true;
     this.requestPaint();
     this.emit();
@@ -399,11 +417,47 @@ export class NeonEngine {
     }
   }
 
+  /** Take a snapshot of the artwork once enough strokes have accumulated. */
+  private maybeCheckpoint(): void {
+    if (this.strokes.length - this.checkpointCount < CHECKPOINT_EVERY) return;
+    this.writeCheckpoint(this.strokes.length);
+  }
+
+  private writeCheckpoint(count: number): void {
+    if (
+      this.checkpoint.width !== this.committed.width ||
+      this.checkpoint.height !== this.committed.height
+    ) {
+      this.checkpoint.width = this.committed.width;
+      this.checkpoint.height = this.committed.height;
+      this.checkpointCtx = context(this.checkpoint);
+    }
+    this.checkpointCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.checkpointCtx.clearRect(0, 0, this.checkpoint.width, this.checkpoint.height);
+    this.checkpointCtx.drawImage(this.committed, 0, 0);
+    this.checkpointCount = count;
+  }
+
+  /**
+   * Rebuild the artwork from the stroke list, resuming from the snapshot when
+   * it covers a prefix of what is left.
+   */
   private redrawCommitted(): void {
+    const resumable = this.checkpointCount > 0 && this.checkpointCount <= this.strokes.length;
+    const from = resumable ? this.checkpointCount : 0;
+
     this.committedCtx.setTransform(1, 0, 0, 1, 0, 0);
     this.committedCtx.clearRect(0, 0, this.committed.width, this.committed.height);
+    if (resumable) this.committedCtx.drawImage(this.checkpoint, 0, 0);
+    else this.checkpointCount = 0;
+
     this.clearScratch();
-    for (const stroke of this.strokes) this.replay(stroke);
+    // A full rebuild is the moment to leave a fresh snapshot behind.
+    const snapshotAt = resumable ? -1 : this.strokes.length - CHECKPOINT_EVERY;
+    for (let i = from; i < this.strokes.length; i += 1) {
+      this.replay(this.strokes[i]);
+      if (i + 1 === snapshotAt) this.writeCheckpoint(snapshotAt);
+    }
   }
 
   private redrawLive(): void {

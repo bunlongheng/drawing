@@ -9,7 +9,7 @@ async function litPixels(page: Page): Promise<number> {
     const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
     await frame();
     await frame();
-    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
     const ctx = canvas.getContext("2d")!;
     const { data } = ctx.getImageData(0, 0, canvas.width, canvas.height);
     let lit = 0;
@@ -31,7 +31,7 @@ async function stroke(
   const { pointerType = "mouse", pressure = 0.5, from = [120, 200], length = 180 } = options;
   await page.evaluate(
     ({ pointerType, pressure, from, length }) => {
-      const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+      const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
       const rect = canvas.getBoundingClientRect();
       const fire = (type: string, x: number, y: number) =>
         canvas.dispatchEvent(
@@ -122,7 +122,7 @@ test("the core stays saturated along a whole curved stroke", async ({ page }) =>
   // every step. The stroke spans many frames, because each frame re-blooms
   // only what moved since the last one.
   const dark = await page.evaluate(async () => {
-    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
     const midY = rect.height / 2;
     const from = 70;
@@ -182,7 +182,7 @@ test("touch draws when no pen has been used", async ({ page }) => {
 
 test("a second pointer during a stroke is ignored", async ({ page }) => {
   await page.evaluate(() => {
-    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
     const rect = canvas.getBoundingClientRect();
     const fire = (type: string, id: number, x: number, y: number) =>
       canvas.dispatchEvent(
@@ -217,6 +217,45 @@ test("artwork survives a viewport change, and undo still works after it", async 
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 
   await page.getByRole("button", { name: "Undo" }).click();
+  expect(await litPixels(page)).toBe(0);
+});
+
+test("undoing back past a checkpoint clears the canvas completely", async ({ page }) => {
+  // Undo resumes from a snapshot taken every 20 strokes; crossing that
+  // boundary takes a different code path, and a stale snapshot would leave
+  // pixels behind.
+  await page.evaluate(async () => {
+    const canvas = document.querySelector("canvas.surface") as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const fire = (type: string, x: number, y: number) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: 1,
+          pointerType: "pen",
+          pressure: 0.7,
+          isPrimary: true,
+          bubbles: true,
+          clientX: rect.left + x,
+          clientY: rect.top + y,
+        }),
+      );
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+    for (let i = 0; i < 25; i += 1) {
+      const x = 40 + (i % 8) * 30;
+      const y = 40 + Math.floor(i / 8) * 40;
+      fire("pointerdown", x, y);
+      for (let k = 1; k <= 5; k += 1) fire("pointermove", x + k * 4, y + k);
+      fire("pointerup", x + 20, y + 5);
+      if (i % 5 === 0) await frame();
+    }
+    await frame();
+  });
+  expect(await litPixels(page)).toBeGreaterThan(500);
+
+  const undo = page.getByRole("button", { name: "Undo" });
+  for (let i = 0; i < 25; i += 1) await undo.click();
+
+  await expect(undo).toBeDisabled();
   expect(await litPixels(page)).toBe(0);
 });
 

@@ -4,7 +4,7 @@
 
 [![Next.js](https://img.shields.io/badge/Next.js-16-000000?logo=nextdotjs&logoColor=white)](https://nextjs.org)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
-[![Tests](https://img.shields.io/badge/tests-53%20unit%20%2B%2026%20e2e-22c55e)](#testing)
+[![Tests](https://img.shields.io/badge/tests-58%20unit%20%2B%2027%20e2e-22c55e)](#testing)
 [![License](https://img.shields.io/badge/license-MIT-f43f5e)](LICENSE)
 
 ![Four neon styles on a black canvas](docs/demo.png)
@@ -75,6 +75,9 @@ animation-frame floor.
 The blur pad is 2.5 sigma rather than the textbook 3: the last half sigma falls below one 8-bit level
 and costs about 17% more area to rebuild.
 
+Undo cannot subtract additive pixels, so it rebuilds from the stroke list. A snapshot of the artwork every
+20 strokes caps that at 20 replays instead of all of them - at 300 strokes an undo went from 582 ms to 48 ms.
+
 ## Project layout
 
 ```
@@ -92,7 +95,7 @@ components/
   NeonCanvasClient.tsx  client-only boundary (a canvas app has nothing to server render)
   Toolbar.tsx        the floating control pill
   Popover.tsx        anchored panel used by the style, ink and size controls
-  StrokePreview.tsx  style swatch, built from the same recipe as the canvas
+  StrokePreview.tsx  style swatch, drawn by the real engine on a small canvas
   icons.tsx          line icons
 lib/
   neon.ts            palette, style presets, colour and width maths (pure, unit tested)

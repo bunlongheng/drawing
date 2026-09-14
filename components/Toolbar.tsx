@@ -86,7 +86,7 @@ export function Toolbar({
       <Popover
         label={`Neon style: ${style.name}`}
         accent={accent}
-        trigger={<StrokePreview style={style} hsl={color.hsl} className="h-6 w-8" />}
+        trigger={<StrokePreview style={style} colorId={color.id} width={30} height={22} />}
       >
         <RadioGroup
           label="Neon style"
@@ -100,7 +100,7 @@ export function Toolbar({
             const preset = findStyle(option.id);
             return (
               <>
-                <StrokePreview style={preset} hsl={color.hsl} className="h-7 w-11" />
+                <StrokePreview style={preset} colorId={color.id} />
                 <span className="micro">{preset.name}</span>
               </>
             );
