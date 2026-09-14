@@ -1,5 +1,0 @@
-# Disabled deliberately: this repo has no runtime dependencies beyond Next and
-# React, and updates are reviewed by hand. Kept as a file so the intent is
-# explicit rather than an oversight.
-version: 2
-updates: []
