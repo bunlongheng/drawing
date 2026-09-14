@@ -10,7 +10,11 @@ import {
   exportFilename,
   findColor,
   findStyle,
-  hueOffsetAt,
+  blendAt,
+  colorAt,
+  gradientSpan,
+  isGradient,
+  mixHsl,
   inkColor,
   normaliseBrush,
   sampleWidth,
@@ -27,6 +31,16 @@ describe("presets", () => {
     expect(findStyle("nope").id).toBe(STYLES[0].id);
     expect(findColor("nope").id).toBe(COLORS[0].id);
     expect(findStyle("laser").id).toBe("laser");
+  });
+
+  it("ships four structurally distinct styles", () => {
+    expect(STYLES).toHaveLength(4);
+    // Each look differs in shape, not just intensity, so the tube widths and
+    // core whiteness must actually spread out.
+    const tubes = STYLES.map((s) => s.tube);
+    expect(Math.max(...tubes) / Math.min(...tubes)).toBeGreaterThan(3);
+    const whites = STYLES.map((s) => s.coreWhite);
+    expect(Math.max(...whites) - Math.min(...whites)).toBeGreaterThan(0.8);
   });
 
   it("keeps every bloom recipe within a sane range", () => {
@@ -73,14 +87,72 @@ describe("colour maths", () => {
     expect(inkColor(base, 9)).toBe(inkColor(base, 1));
   });
 
-  it("rotates the hue along the stroke only for shifting styles", () => {
-    expect(hueOffsetAt(findStyle("classic"), 500)).toBe(0);
-    expect(hueOffsetAt(findStyle("plasma"), 100)).toBe(45);
-    expect(hueOffsetAt(findStyle("plasma"), 200)).toBe(90);
-  });
-
   it("applies the hue offset to the rendered colour", () => {
     expect(inkColor({ h: 350, s: 100, l: 50 }, 0, 20)).toBe("hsl(10.0 100.0% 50.0%)");
+  });
+});
+
+describe("gradient inks", () => {
+  it("marks only two-stop inks as gradients", () => {
+    expect(isGradient(findColor("cyan"))).toBe(false);
+    expect(isGradient(findColor("sunset"))).toBe(true);
+  });
+
+  it("blends toward the second stop the short way around the hue circle", () => {
+    const pink = { h: 330, s: 100, l: 60 };
+    const orange = { h: 30, s: 100, l: 60 };
+    // 330 -> 30 is +60 through red, not -300 through the whole spectrum.
+    expect(mixHsl(pink, orange, 0.5).h).toBeCloseTo(0);
+    expect(mixHsl(pink, orange, 0).h).toBeCloseTo(330);
+    expect(mixHsl(pink, orange, 1).h).toBeCloseTo(30);
+  });
+
+  it("interpolates saturation and lightness too, and clamps t", () => {
+    const a = { h: 200, s: 40, l: 20 };
+    const b = { h: 200, s: 80, l: 60 };
+    expect(mixHsl(a, b, 0.5)).toMatchObject({ s: 60, l: 40 });
+    expect(mixHsl(a, b, -3)).toMatchObject({ s: 40, l: 20 });
+    expect(mixHsl(a, b, 9)).toMatchObject({ s: 80, l: 60 });
+  });
+
+  it("eases back and forth instead of clamping at the far stop", () => {
+    expect(blendAt(0, 100)).toBe(0);
+    expect(blendAt(50, 100)).toBeCloseTo(0.5);
+    expect(blendAt(100, 100)).toBeCloseTo(1);
+    expect(blendAt(150, 100)).toBeCloseTo(0.5);
+    expect(blendAt(200, 100)).toBeCloseTo(0);
+    expect(blendAt(250, 100)).toBeCloseTo(0.5);
+  });
+
+  it("stays within range for any distance and survives a zero span", () => {
+    for (const d of [0, 7, 123, 4096, 99999]) {
+      const t = blendAt(d, 260);
+      expect(t).toBeGreaterThanOrEqual(0);
+      expect(t).toBeLessThanOrEqual(1);
+    }
+    expect(blendAt(500, 0)).toBe(0);
+  });
+
+  it("scales the span with the brush, within sane bounds", () => {
+    expect(gradientSpan(10)).toBe(260);
+    expect(gradientSpan(2)).toBe(120);
+    expect(gradientSpan(48)).toBe(700);
+  });
+
+  it("leaves a solid ink alone at any distance", () => {
+    const cyan = findColor("cyan");
+    expect(colorAt(cyan, 0, 10)).toEqual(cyan.hsl);
+    expect(colorAt(cyan, 5000, 10)).toEqual(cyan.hsl);
+  });
+
+  it("moves a gradient ink as the stroke travels", () => {
+    const sunset = findColor("sunset");
+    const start = colorAt(sunset, 0, 10);
+    const middle = colorAt(sunset, gradientSpan(10) / 2, 10);
+    const end = colorAt(sunset, gradientSpan(10), 10);
+    expect(start).toEqual(sunset.hsl);
+    expect(end.h).toBeCloseTo(sunset.hsl2!.h);
+    expect(middle.h).not.toBeCloseTo(start.h);
   });
 });
 

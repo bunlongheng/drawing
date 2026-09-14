@@ -6,7 +6,13 @@
 
 export type Hsl = { h: number; s: number; l: number };
 
-export type NeonColor = { id: string; name: string; hsl: Hsl };
+export type NeonColor = {
+  id: string;
+  name: string;
+  hsl: Hsl;
+  /** Second stop. When present the ink is a gradient and blends toward it. */
+  hsl2?: Hsl;
+};
 
 /** One additive copy of the stroke, blurred by `blur` and scaled by `alpha`. */
 export type BloomPass = {
@@ -35,8 +41,6 @@ export type NeonStyle = {
   coreWhite: number;
   /** Additive copies of the tube, ordered dimmest-first for readability. */
   bloom: BloomPass[];
-  /** Hue rotation in degrees per 100px travelled. 0 keeps a single colour. */
-  hueShift: number;
 };
 
 export const COLORS: NeonColor[] = [
@@ -47,90 +51,86 @@ export const COLORS: NeonColor[] = [
   { id: "violet", name: "Violet", hsl: { h: 266, s: 100, l: 64 } },
   { id: "rose", name: "Rose", hsl: { h: 345, s: 100, l: 60 } },
   { id: "white", name: "White", hsl: { h: 200, s: 30, l: 88 } },
+  // Gradients: two stops the stroke eases between as it travels. Kept to
+  // neighbouring hues so they read as one ink shifting, not as a rainbow.
+  {
+    id: "sunset",
+    name: "Sunset",
+    hsl: { h: 328, s: 96, l: 60 },
+    hsl2: { h: 30, s: 98, l: 56 },
+  },
+  {
+    id: "ultraviolet",
+    name: "Ultraviolet",
+    hsl: { h: 276, s: 96, l: 64 },
+    hsl2: { h: 190, s: 96, l: 56 },
+  },
+  {
+    id: "toxic",
+    name: "Toxic",
+    hsl: { h: 150, s: 96, l: 52 },
+    hsl2: { h: 52, s: 98, l: 56 },
+  },
 ];
 
+/**
+ * Four looks that sit at the corners of a square, not along one dial: a line
+ * with a glow, a glow with no line, a line that is almost all glow, and a line
+ * with almost none.
+ */
 export const STYLES: NeonStyle[] = [
   {
+    // The neon sign: white-hot centre inside a saturated halo.
     id: "classic",
     name: "Classic",
-    hueShift: 0,
-    tube: 1,
-    core: 0.34,
-    coreWhite: 0.85,
-    bloom: [
-      { blur: 2.6, alpha: 0.55 },
-      { blur: 1.0, alpha: 0.5 },
-      { blur: 0.3, alpha: 0.45 },
-      { blur: 0, alpha: 0.45 },
-    ],
-  },
-  {
-    id: "laser",
-    name: "Laser",
-    hueShift: 0,
-    tube: 0.6,
-    core: 0.2,
-    coreWhite: 1,
-    bloom: [
-      { blur: 5.0, alpha: 0.5 },
-      { blur: 1.8, alpha: 0.45 },
-      { blur: 0.5, alpha: 0.5 },
-      { blur: 0, alpha: 0.5 },
-    ],
-  },
-  {
-    id: "halo",
-    name: "Halo",
-    hueShift: 0,
-    tube: 1.1,
-    core: 0.45,
-    coreWhite: 0.2,
-    bloom: [
-      { blur: 6.0, alpha: 0.6 },
-      { blur: 2.4, alpha: 0.5 },
-      { blur: 0.9, alpha: 0.4 },
-      { blur: 0, alpha: 0.3 },
-    ],
-  },
-  {
-    id: "wire",
-    name: "Wire",
-    hueShift: 0,
-    tube: 0.5,
-    core: 0.2,
-    coreWhite: 0.9,
-    bloom: [
-      { blur: 2.0, alpha: 0.4 },
-      { blur: 0.7, alpha: 0.4 },
-      { blur: 0, alpha: 0.6 },
-    ],
-  },
-  {
-    id: "plasma",
-    name: "Plasma",
-    hueShift: 45,
     tube: 1,
     core: 0.32,
-    coreWhite: 0.8,
+    coreWhite: 0.9,
     bloom: [
-      { blur: 2.8, alpha: 0.55 },
+      { blur: 3.0, alpha: 0.5 },
       { blur: 1.1, alpha: 0.5 },
       { blur: 0.35, alpha: 0.45 },
       { blur: 0, alpha: 0.45 },
     ],
   },
   {
-    id: "spectrum",
-    name: "Spectrum",
-    hueShift: 160,
-    tube: 0.9,
-    core: 0.28,
-    coreWhite: 0.78,
+    // No hard centre at all: a fat, soft, wholly coloured light.
+    id: "halo",
+    name: "Halo",
+    tube: 2.0,
+    core: 1.2,
+    coreWhite: 0,
     bloom: [
-      { blur: 2.4, alpha: 0.5 },
-      { blur: 0.9, alpha: 0.5 },
-      { blur: 0.3, alpha: 0.5 },
-      { blur: 0, alpha: 0.5 },
+      { blur: 5.0, alpha: 0.65 },
+      { blur: 2.2, alpha: 0.55 },
+      { blur: 0.9, alpha: 0.45 },
+      { blur: 0, alpha: 0.28 },
+    ],
+  },
+  {
+    // A razor line of white with a tight, fierce halo around it.
+    id: "laser",
+    name: "Laser",
+    tube: 0.3,
+    core: 0.13,
+    coreWhite: 1,
+    bloom: [
+      { blur: 2.2, alpha: 0.6 },
+      { blur: 0.8, alpha: 0.6 },
+      { blur: 0.25, alpha: 0.6 },
+      { blur: 0, alpha: 0.75 },
+    ],
+  },
+  {
+    // Barely lit: a flat coloured line, the tube switched off.
+    id: "wire",
+    name: "Wire",
+    tube: 0.5,
+    core: 0.34,
+    coreWhite: 0.15,
+    bloom: [
+      { blur: 0.5, alpha: 0.25 },
+      { blur: 0, alpha: 0.85 },
     ],
   },
 ];
@@ -174,9 +174,52 @@ export function inkColor(base: Hsl, white: number, hueOffset = 0): string {
 }
 
 
-/** Hue rotation applied at `distance` CSS px into the stroke. */
-export function hueOffsetAt(style: NeonStyle, distance: number): number {
-  return style.hueShift === 0 ? 0 : (distance / 100) * style.hueShift;
+/** True when the ink blends between two stops rather than sitting on one hue. */
+export function isGradient(color: NeonColor): boolean {
+  return color.hsl2 !== undefined;
+}
+
+/**
+ * Blend two colours, taking the short way around the hue circle so pink to
+ * orange passes through red rather than the whole spectrum.
+ */
+export function mixHsl(a: Hsl, b: Hsl, t: number): Hsl {
+  const k = clamp(t, 0, 1);
+  const delta = (((b.h - a.h + 540) % 360) - 180) * k;
+  return {
+    h: wrapHue(a.h + delta),
+    s: a.s + (b.s - a.s) * k,
+    l: a.l + (b.l - a.l) * k,
+  };
+}
+
+/**
+ * Distance a gradient takes to travel from one stop to the other, in CSS px.
+ *
+ * Proportional to the brush so a fine pen and a fat one both show the shift
+ * over a comparable visual run, then clamped so neither extreme is silly.
+ */
+export function gradientSpan(size: number): number {
+  return clamp(size * 26, 120, 700);
+}
+
+/**
+ * How far between the two stops the ink is, `distance` px into the stroke.
+ *
+ * A triangle wave rather than a ramp: the total length of a stroke is not known
+ * while it is being drawn, and easing back and forth makes a long stroke read
+ * as a ribbon instead of clamping to the second stop and staying there.
+ */
+export function blendAt(distance: number, span: number): number {
+  if (span <= 0) return 0;
+  const u = Math.abs(distance / span) % 2;
+  return u <= 1 ? u : 2 - u;
+}
+
+/** The ink colour `distance` px into a stroke drawn at `size`. */
+export function colorAt(color: NeonColor, distance: number, size: number): Hsl {
+  if (!color.hsl2) return color.hsl;
+  return mixHsl(color.hsl, color.hsl2, blendAt(distance, gradientSpan(size)));
 }
 
 /**

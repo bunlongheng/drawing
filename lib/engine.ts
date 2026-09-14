@@ -36,7 +36,7 @@ import {
   distance,
   findColor,
   findStyle,
-  hueOffsetAt,
+  colorAt,
   inkColor,
   sampleWidth,
 } from "./neon";
@@ -482,8 +482,7 @@ export class NeonEngine {
   /** One segment, painted opaquely into both scratch layers. */
   private paintSegment(stroke: Stroke, from: Sample, to: Sample): void {
     const style = findStyle(stroke.styleId);
-    const hsl = findColor(stroke.colorId).hsl;
-    const hueOffset = hueOffsetAt(style, to.d);
+    const hsl = colorAt(findColor(stroke.colorId), to.d, stroke.size);
     const width = (from.w + to.w) / 2;
     // A zero-length path is unreliable across engines; nudge it into a dot.
     const toX = from.x === to.x && from.y === to.y ? to.x + 0.01 : to.x;
@@ -495,8 +494,8 @@ export class NeonEngine {
     }
 
     const passes: [CanvasRenderingContext2D, number, string][] = [
-      [this.tubeCtx, style.tube, inkColor(hsl, 0, hueOffset)],
-      [this.coreCtx, style.core, inkColor(hsl, style.coreWhite, hueOffset)],
+      [this.tubeCtx, style.tube, inkColor(hsl, 0)],
+      [this.coreCtx, style.core, inkColor(hsl, style.coreWhite)],
     ];
 
     for (const [ctx, scale, css] of passes) {

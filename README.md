@@ -31,8 +31,9 @@ A minimal neon sketchpad for Apple Pencil. Pure black canvas, pressure-sensitive
 
 - **Apple Pencil first.** Pressure drives stroke width, and coalesced pointer events capture the full 120 Hz sample rate rather than the 60 Hz the browser hands you by default.
 - **Palm rejection.** Once a Pencil has been seen, touch input is ignored, so you can rest your hand on the glass.
-- **6 neon styles.** Classic, Laser, Halo and Wire, plus Plasma and Spectrum, which rotate the hue as the stroke travels.
-- **7 inks and a 2-48 px brush,** remembered between sessions and validated on the way back in.
+- **4 neon styles,** chosen to differ in shape rather than in degree: **Classic** (white-hot core in a saturated halo), **Halo** (a fat soft light with no hard centre), **Laser** (a razor line with a fierce tight glow) and **Wire** (a flat coloured line, barely lit).
+- **7 solid inks and 3 gradients** - Sunset (pink to orange), Ultraviolet (violet to cyan) and Toxic (green to yellow) ease between two stops as the stroke travels, so a line shifts colour along its length.
+- **A 2-48 px brush,** remembered between sessions along with the style and ink, and validated on the way back in.
 - **Always black.** The canvas is pure `#000000`, so the PNG you export is exactly what you drew.
 - **Download or share.** PNG at device resolution, through the native share sheet on iPadOS and iOS and a download everywhere else.
 - **Undo, redo, clear.** Toolbar or `Cmd+Z` / `Cmd+Shift+Z` / `Cmd+S`; clear asks twice before erasing.
@@ -112,6 +113,8 @@ That last point is what makes it usable: a long sweeping stroke went from **107 
 | Rendering owner | A plain class outside React | React state | Nothing re-renders during a stroke at 120 Hz | The engine is driven imperatively, by hand |
 | Server rendering | None, client-only | SSR the shell | A canvas has nothing to prerender, and stored preferences seed the first paint with no hydration mismatch | A blank frame before hydration |
 | Style swatches | Drawn by the real engine | An SVG lookalike | The picker cannot disagree with the brush, and the recipe exists in one place | A small canvas per swatch |
+| Colour variation | Two-stop gradient inks | A rainbow hue-rotate style | Two neighbouring hues read as one ink shifting; a full spectrum sweep read as garish | A gradient needs a travel distance to show |
+| Gradient progress | Triangle wave over distance | A ramp across the stroke | The total length is unknown while drawing, and easing back makes a long stroke a ribbon | A very long stroke repeats the sweep |
 
 ## Tech stack
 
@@ -159,8 +162,8 @@ The toolbar fades while you draw and comes back when you lift off. Arrow keys mo
 ```bash
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
-npm run test       # Vitest - 58 tests over the pure logic and the engine
-npm run test:e2e   # Playwright - 27 cases on Chromium and WebKit/iPad
+npm run test       # Vitest - 66 tests over the pure logic and the engine
+npm run test:e2e   # Playwright - 28 cases on Chromium and WebKit/iPad
 npm run test:all   # both suites
 ```
 

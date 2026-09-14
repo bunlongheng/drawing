@@ -12,12 +12,25 @@ type StrokePreviewProps = {
   height?: number;
 };
 
-/** A brush size that reads at this scale; the recipe is proportional to it. */
-const SIZE = 3.6;
+/** The largest brush a swatch uses; wide styles scale down from here. */
+const MAX_SIZE = 2.3;
+
+/**
+ * A brush size whose widest blurred pass still fits the tile.
+ *
+ * Halo's bloom reaches five times the brush width, so one fixed size would clip
+ * it against the canvas edge and leave a bright rectangle. Scaling per style
+ * keeps every swatch whole while Halo stays visibly the fattest.
+ */
+function previewSize(style: NeonStyle, height: number): number {
+  const widest = Math.max(0, ...style.bloom.map((pass) => pass.blur));
+  if (widest === 0) return MAX_SIZE;
+  return Math.min(MAX_SIZE, Math.max(1.4, height / 2 / (widest * 2.2)));
+}
 
 /** The squiggle, as samples rather than a path, because that is what the engine takes. */
 function curve(width: number, height: number) {
-  const inset = 8;
+  const inset = Math.min(width, height) * 0.3;
   return Array.from({ length: 26 }, (_, i) => {
     const t = i / 25;
     return {
@@ -37,8 +50,8 @@ function curve(width: number, height: number) {
 export function StrokePreview({
   style,
   colorId,
-  width = 44,
-  height = 30,
+  width = 50,
+  height = 36,
 }: StrokePreviewProps) {
   const ref = useRef<HTMLCanvasElement>(null);
 
@@ -55,13 +68,13 @@ export function StrokePreview({
     engine.resize(width, height, window.devicePixelRatio);
 
     const points = curve(width, height);
-    const brush = { styleId: style.id, colorId, size: SIZE };
+    const brush = { styleId: style.id, colorId, size: previewSize(style, height) };
     engine.begin(brush, points[0].x, points[0].y, 1, true);
     for (const point of points.slice(1)) engine.extend(point.x, point.y, 1, true);
     engine.end();
 
     return () => engine.destroy();
-  }, [style.id, colorId, width, height]);
+  }, [style, colorId, width, height]);
 
   return (
     <canvas

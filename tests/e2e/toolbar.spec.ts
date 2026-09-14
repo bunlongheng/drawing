@@ -7,10 +7,19 @@ test.beforeEach(async ({ page }) => {
 test("every neon style can be picked", async ({ page }) => {
   await page.getByRole("button", { name: /Neon style/ }).click();
   const options = page.getByRole("radio");
-  await expect(options).toHaveCount(6);
+  await expect(options).toHaveCount(4);
 
-  await options.filter({ hasText: "Spectrum" }).click();
-  await expect(page.getByRole("button", { name: "Neon style: Spectrum" })).toBeVisible();
+  await options.filter({ hasText: "Halo" }).click();
+  await expect(page.getByRole("button", { name: "Neon style: Halo" })).toBeVisible();
+});
+
+test("a gradient ink can be picked and is remembered", async ({ page }) => {
+  await page.getByRole("button", { name: /Ink colour/ }).click();
+  await page.getByRole("radio", { name: "Sunset" }).click();
+  await expect(page.getByRole("button", { name: "Ink colour: Sunset" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Ink colour: Sunset" })).toBeVisible();
 });
 
 test("colour and size selections persist across a reload", async ({ page }) => {
@@ -53,20 +62,20 @@ test("arrow keys move through a radio group and change the selection", async ({ 
   await expect(page.getByRole("radio", { name: "Classic" })).toBeFocused();
 
   await page.keyboard.press("ArrowRight");
-  await expect(page.getByRole("button", { name: "Neon style: Laser" })).toBeVisible();
-  await expect(page.getByRole("radio", { name: "Laser" })).toBeFocused();
+  await expect(page.getByRole("button", { name: "Neon style: Halo" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Halo" })).toBeFocused();
 
   await page.keyboard.press("ArrowLeft");
   await expect(page.getByRole("button", { name: "Neon style: Classic" })).toBeVisible();
 
   // Wraps backwards to the last option.
   await page.keyboard.press("ArrowLeft");
-  await expect(page.getByRole("button", { name: "Neon style: Spectrum" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Neon style: Wire" })).toBeVisible();
 
   await page.keyboard.press("Home");
   await expect(page.getByRole("button", { name: "Neon style: Classic" })).toBeVisible();
   await page.keyboard.press("End");
-  await expect(page.getByRole("button", { name: "Neon style: Spectrum" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Neon style: Wire" })).toBeVisible();
 });
 
 test("only the selected radio is a tab stop", async ({ page }) => {

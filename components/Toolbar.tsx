@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import type { Brush, EngineState } from "@/lib/engine";
 import {
   COLORS,
+  type NeonColor,
   MAX_SIZE,
   MIN_SIZE,
   STYLES,
@@ -11,6 +12,7 @@ import {
   findColor,
   findStyle,
   inkColor,
+  isGradient,
 } from "@/lib/neon";
 import { Popover } from "./Popover";
 import { RadioGroup } from "./RadioGroup";
@@ -41,6 +43,13 @@ type ToolbarProps = {
 
 const CLEAR_ARM_MS = 2600;
 
+/** CSS fill for an ink swatch: flat for a solid, a sweep for a gradient. */
+function swatchFill(option: NeonColor): string {
+  const from = inkColor(option.hsl, 0);
+  if (!option.hsl2) return from;
+  return `linear-gradient(135deg, ${from}, ${inkColor(option.hsl2, 0)})`;
+}
+
 export function Toolbar({
   brush,
   onBrushChange,
@@ -59,6 +68,7 @@ export function Toolbar({
   const armed = clearArmed && !state.isEmpty;
   const style = findStyle(brush.styleId);
   const color = findColor(brush.colorId);
+  // Gradients light the chrome with their first stop.
   const accent = inkColor(color.hsl, 0);
 
   useEffect(() => {
@@ -86,14 +96,14 @@ export function Toolbar({
       <Popover
         label={`Neon style: ${style.name}`}
         accent={accent}
-        trigger={<StrokePreview style={style} colorId={color.id} width={30} height={22} />}
+        trigger={<StrokePreview style={style} colorId={color.id} width={36} height={26} />}
       >
         <RadioGroup
           label="Neon style"
           options={STYLES.map((option) => ({ id: option.id, label: option.name }))}
           value={style.id}
           onChange={(styleId) => onBrushChange({ styleId })}
-          className="grid grid-cols-3 gap-1"
+          className="styles"
           optionClassName="swatch"
         >
           {(option) => {
@@ -114,7 +124,7 @@ export function Toolbar({
         trigger={
           <span
             className="block h-4 w-4 rounded-full"
-            style={{ background: accent, boxShadow: `0 0 12px 1px ${accent}` }}
+            style={{ background: swatchFill(color), boxShadow: `0 0 12px 1px ${accent}` }}
           />
         }
       >
@@ -123,16 +133,23 @@ export function Toolbar({
           options={COLORS.map((option) => ({ id: option.id, label: option.name }))}
           value={color.id}
           onChange={(colorId) => onBrushChange({ colorId })}
-          className="flex gap-1.5"
+          className="inks"
           optionClassName="dot"
           titleOnly
         >
           {(option) => {
-            const css = inkColor(findColor(option.id).hsl, 0);
+            const ink = findColor(option.id);
+            const glow = inkColor(ink.hsl, 0);
             return (
               <span
                 className="block h-5 w-5 rounded-full"
-                style={{ background: css, boxShadow: `0 0 14px 1px ${css}` }}
+                style={{
+                  background: swatchFill(ink),
+                  boxShadow: `0 0 14px 1px ${glow}`,
+                  // A gradient ink gets a ring so it reads as two stops, not a blur.
+                  outline: isGradient(ink) ? "1px solid rgba(255,255,255,0.28)" : undefined,
+                  outlineOffset: "-1px",
+                }}
               />
             );
           }}
