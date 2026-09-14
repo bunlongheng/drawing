@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  BLOOM_SIGMA,
   bloomPad,
   damageRect,
   emptyBounds,
@@ -54,8 +55,8 @@ describe("unionRect", () => {
 describe("bloomPad", () => {
   it("scales with the widest blur, the brush size and the pixel ratio", () => {
     const classic = findStyle("classic"); // widest blur 2.6
-    expect(bloomPad(classic, 10, 1)).toBeCloseTo(2.6 * 10 * 3 + 2);
-    expect(bloomPad(classic, 10, 2)).toBeCloseTo(2.6 * 10 * 3 * 2 + 2);
+    expect(bloomPad(classic, 10, 1)).toBeCloseTo(2.6 * 10 * BLOOM_SIGMA + 2);
+    expect(bloomPad(classic, 10, 2)).toBeCloseTo(2.6 * 10 * BLOOM_SIGMA * 2 + 2);
   });
 
   it("grows monotonically with size", () => {

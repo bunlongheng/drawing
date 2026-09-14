@@ -116,6 +116,65 @@ test("clear needs a second tap to confirm", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Confirm clear canvas" })).toBeVisible();
 });
 
+test("the core stays saturated along a whole curved stroke", async ({ page }) => {
+  // Counting lit pixels cannot see a few hundred missing out of thirty
+  // thousand, so walk the path itself and assert the hot core is there at
+  // every step. The stroke spans many frames, because each frame re-blooms
+  // only what moved since the last one.
+  const dark = await page.evaluate(async () => {
+    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const midY = rect.height / 2;
+    const from = 70;
+    const to = Math.round(rect.width) - 70;
+    const amplitude = Math.min(140, rect.height / 3);
+    const at = (x: number) =>
+      midY + Math.sin(((x - from) / (to - from)) * Math.PI * 2) * amplitude;
+
+    const fire = (type: string, x: number, y: number) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: 1,
+          pointerType: "pen",
+          pressure: 0.9,
+          isPrimary: true,
+          bubbles: true,
+          clientX: rect.left + x,
+          clientY: rect.top + y,
+        }),
+      );
+
+    const frame = () => new Promise((resolve) => requestAnimationFrame(resolve));
+
+    fire("pointerdown", from, at(from));
+    for (let x = from + 2; x <= to; x += 2) {
+      fire("pointermove", x, at(x));
+      if (x % 24 === 0) await frame();
+    }
+    fire("pointerup", to, at(to));
+    await frame();
+    await frame();
+
+    // A clean core saturates to white (255 x 3). The soft bloom alone reads a
+    // few hundred, so anything short of saturation means core pixels are gone.
+    const ctx = canvas.getContext("2d")!;
+    const scale = canvas.width / rect.width;
+    const misses: number[] = [];
+    for (let x = from + 14; x <= to - 14; x += 3) {
+      const px = ctx.getImageData(
+        Math.round(x * scale),
+        Math.round(at(x) * scale),
+        1,
+        1,
+      ).data;
+      if (px[0] + px[1] + px[2] < 700) misses.push(x);
+    }
+    return misses;
+  });
+
+  expect(dark, `unlit points on the stroke: ${dark.slice(0, 12).join(", ")}`).toEqual([]);
+});
+
 test("touch draws when no pen has been used", async ({ page }) => {
   await stroke(page, { pointerType: "touch" });
   expect(await litPixels(page)).toBeGreaterThan(500);

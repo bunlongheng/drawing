@@ -46,12 +46,18 @@ export function unionRect(a: Rect | null, b: Rect | null): Rect | null {
 }
 
 /**
- * How far the widest blurred pass of a style reaches, in device px. A CSS blur
- * of radius r has effectively faded out by 3r.
+ * How far the widest blurred pass of a style reaches, in device px.
+ *
+ * A Gaussian is effectively gone by 3 sigma, but the last half sigma is below
+ * one 8-bit level here, and dropping it shrinks the rebuilt box by about 17% -
+ * which matters because a wide style at a large brush size can otherwise pad
+ * past the edge of the canvas and turn every frame into full-canvas work.
  */
+export const BLOOM_SIGMA = 2.5;
+
 export function bloomPad(style: NeonStyle, size: number, dpr: number): number {
   const widest = Math.max(0, ...style.bloom.map((pass) => pass.blur)) * size;
-  return widest * 3 * dpr + 2;
+  return widest * BLOOM_SIGMA * dpr + 2;
 }
 
 /** A bounds, padded and clamped to the canvas. Null when nothing is visible. */
