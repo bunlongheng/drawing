@@ -64,10 +64,10 @@ test("the speed slider stops on each allowed speed", async ({ page }) => {
   // Opens slow, so a first-time replay is followable.
   await expect(slider).toHaveAttribute("aria-valuetext", "0.25 times speed");
   await expect(slider).toHaveAttribute("min", "0");
-  await expect(slider).toHaveAttribute("max", "4");
+  await expect(slider).toHaveAttribute("max", "3");
   await expect(slider).toHaveAttribute("step", "1");
 
-  const speeds = ["0.1", "0.25", "0.5", "1", "1.5"];
+  const speeds = ["0.1", "0.25", "0.5", "1"];
   for (const [index, speed] of speeds.entries()) {
     await slider.fill(String(index));
     await expect(slider).toHaveAttribute("aria-valuetext", `${speed} times speed`);
@@ -76,14 +76,15 @@ test("the speed slider stops on each allowed speed", async ({ page }) => {
 
 test("replay speed is remembered", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("slider", { name: "Replay speed" }).fill("4");
+  await page.getByRole("slider", { name: "Replay speed" }).fill("3");
   await page.keyboard.press("Escape");
 
   await page.reload();
   await page.getByRole("button", { name: /Animation/ }).click();
+  // Distinct from the 0.25 default, so this really is the stored value.
   await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveAttribute(
     "aria-valuetext",
-    "1.5 times speed",
+    "1 times speed",
   );
 });
 

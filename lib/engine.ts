@@ -84,8 +84,15 @@ export type EngineState = {
 /** One point of the artwork, used to place particles and the replay head. */
 type IndexPoint = { x: number; y: number; hsl: Hsl };
 
-/** Samples per second a replay paints at speed 1. */
-const REPLAY_RATE = 460;
+/**
+ * CSS pixels of line a replay paints per second at 1x.
+ *
+ * Distance, not samples: a quick stroke records its samples further apart, so
+ * a per-sample rate replayed a hurried line faster than a careful one. Pacing
+ * by distance means 1x is the same visible speed whatever was drawn, and every
+ * fraction of it is predictable.
+ */
+const REPLAY_PX_PER_SECOND = 210;
 
 /** At most this many points back the artwork for particles - plenty, and cheap. */
 const MAX_INDEX = 900;
@@ -669,16 +676,14 @@ export class NeonEngine {
     const replay = this.replayState;
     if (!replay) return;
 
-    replay.budget += ((nowMs - replay.last) / 1000) * REPLAY_RATE * replay.speed;
+    const elapsed = (nowMs - replay.last) / 1000;
     replay.last = nowMs;
+    // A backgrounded tab can bank an enormous gap; cap it at a quarter second
+    // so returning to the page does not skip most of the drawing.
+    replay.budget += Math.min(elapsed, 0.25) * REPLAY_PX_PER_SECOND * replay.speed;
+    if (replay.budget <= 0) return;
 
-    let steps = Math.floor(replay.budget);
-    if (steps <= 0) return;
-    replay.budget -= steps;
-    // A slow tab can bank a huge budget; never paint more than a whole frame.
-    steps = Math.min(steps, 4000);
-
-    while (steps > 0 && replay.stroke < this.strokes.length) {
+    while (replay.budget > 0 && replay.stroke < this.strokes.length) {
       const stroke = this.strokes[replay.stroke];
       const samples = stroke.samples;
 
@@ -686,16 +691,16 @@ export class NeonEngine {
         this.clearScratch();
         this.paintSegment(stroke, samples[0], samples[0]);
         replay.sample = 1;
-        steps -= 1;
+        // A dot has no length, so charge it a nominal step to keep moving.
+        replay.budget -= stroke.size / 2;
         continue;
       }
 
-      const take = Math.min(steps, samples.length - replay.sample);
-      for (let i = 0; i < take; i += 1) {
-        this.paintSegment(stroke, samples[replay.sample - 1], samples[replay.sample]);
-        replay.sample += 1;
-      }
-      steps -= take;
+      const from = samples[replay.sample - 1];
+      const to = samples[replay.sample];
+      this.paintSegment(stroke, from, to);
+      replay.budget -= Math.max(0.01, to.d - from.d);
+      replay.sample += 1;
 
       if (replay.sample >= samples.length) {
         const rect = this.strokeRect(stroke);
