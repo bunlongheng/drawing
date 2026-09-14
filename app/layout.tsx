@@ -32,7 +32,9 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+// Typed explicitly rather than with Next's generated `LayoutProps`, which only
+// exists after a build - `npm run typecheck` has to work on a fresh clone.
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${azeret.variable} h-full antialiased`}>
       <body className="h-full">{children}</body>
