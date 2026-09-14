@@ -61,11 +61,13 @@ test("an animation can be chosen and is remembered", async ({ page }) => {
 test("the speed slider stops on each allowed speed", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
   const slider = page.getByRole("slider", { name: "Replay speed" });
+  // Opens slow, so a first-time replay is followable.
+  await expect(slider).toHaveAttribute("aria-valuetext", "0.25 times speed");
   await expect(slider).toHaveAttribute("min", "0");
-  await expect(slider).toHaveAttribute("max", "5");
+  await expect(slider).toHaveAttribute("max", "4");
   await expect(slider).toHaveAttribute("step", "1");
 
-  const speeds = ["0.1", "0.25", "0.5", "1", "1.5", "2"];
+  const speeds = ["0.1", "0.25", "0.5", "1", "1.5"];
   for (const [index, speed] of speeds.entries()) {
     await slider.fill(String(index));
     await expect(slider).toHaveAttribute("aria-valuetext", `${speed} times speed`);
