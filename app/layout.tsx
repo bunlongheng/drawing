@@ -27,8 +27,8 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // Zoom stays enabled (WCAG 1.4.4). The canvas sets touch-action: none, so a
+  // pinch there never scrolls or zooms the page mid-stroke.
   viewportFit: "cover",
 };
 

@@ -19,6 +19,16 @@
  */
 
 import {
+  type Bounds,
+  type Rect,
+  bloomPad,
+  damageRect,
+  emptyBounds,
+  expandRect,
+  growBounds,
+  unionRect,
+} from "./geometry";
+import {
   MIN_SAMPLE_DISTANCE,
   type BloomPass,
   type Brush,
@@ -40,9 +50,6 @@ export type Sample = {
   d: number;
 };
 
-/** Device-pixel rectangle. */
-export type Rect = { x: number; y: number; w: number; h: number };
-
 export type Stroke = {
   styleId: string;
   colorId: string;
@@ -52,36 +59,8 @@ export type Stroke = {
   bounds: Bounds;
 };
 
-type Bounds = { minX: number; minY: number; maxX: number; maxY: number };
-
-const EMPTY_BOUNDS = (): Bounds => ({
-  minX: Infinity,
-  minY: Infinity,
-  maxX: -Infinity,
-  maxY: -Infinity,
-});
-
-function unionRect(a: Rect | null, b: Rect | null): Rect | null {
-  if (!a) return b;
-  if (!b) return a;
-  const x = Math.min(a.x, b.x);
-  const y = Math.min(a.y, b.y);
-  return {
-    x,
-    y,
-    w: Math.max(a.x + a.w, b.x + b.w) - x,
-    h: Math.max(a.y + a.h, b.y + b.h) - y,
-  };
-}
-
-function grow(bounds: Bounds, x: number, y: number, reach: number): void {
-  bounds.minX = Math.min(bounds.minX, x - reach);
-  bounds.minY = Math.min(bounds.minY, y - reach);
-  bounds.maxX = Math.max(bounds.maxX, x + reach);
-  bounds.maxY = Math.max(bounds.maxY, y + reach);
-}
-
 export type { Brush };
+export type { Rect };
 
 export type EngineState = { canUndo: boolean; canRedo: boolean; isEmpty: boolean };
 
@@ -129,16 +108,18 @@ export class NeonEngine {
   private lastSample: Sample | null = null;
   private lastTime = 0;
   /** Extent painted since the last frame, i.e. the part of `glow` to rebuild. */
-  private pending: Bounds = EMPTY_BOUNDS();
+  private pending: Bounds = emptyBounds();
 
   private width = 0;
   private height = 0;
   private dpr = 1;
   private frame = 0;
   private dirty = false;
-  /** Device-px region the next frame must recomposite; null means everything. */
+  /** Device-px region the next frame must recomposite. */
   private damage: Rect | null = null;
   private fullRepaint = true;
+  /** Set when `committed` must be rebuilt from `strokes` before the next paint. */
+  private committedStale = false;
 
   constructor(
     display: HTMLCanvasElement,
@@ -183,11 +164,11 @@ export class NeonEngine {
       colorId: brush.colorId,
       size: brush.size,
       samples: [],
-      bounds: EMPTY_BOUNDS(),
+      bounds: emptyBounds(),
     };
     this.lastSample = null;
     this.lastTime = performance.now();
-    this.pending = EMPTY_BOUNDS();
+    this.pending = emptyBounds();
     this.clearScratch();
     this.extend(x, y, pressure, isPen);
   }
@@ -225,12 +206,17 @@ export class NeonEngine {
     this.strokes.push(stroke);
     this.redoStack = [];
     this.refreshGlow(stroke);
+
+    // The glow already holds the finished stroke, so fold just its rectangle
+    // into the artwork rather than blitting the whole canvas.
+    const rect = this.strokeRect(stroke);
     this.committedCtx.setTransform(1, 0, 0, 1, 0, 0);
     this.committedCtx.globalCompositeOperation = "lighter";
-    this.committedCtx.drawImage(this.glow, 0, 0);
+    if (rect) this.blitRect(this.committedCtx, this.glow, rect);
     this.committedCtx.globalCompositeOperation = "source-over";
     this.clearScratch();
-    this.requestPaint();
+
+    this.requestPaint(rect);
     this.emit();
   }
 
@@ -238,7 +224,10 @@ export class NeonEngine {
     const stroke = this.strokes.pop();
     if (!stroke) return;
     this.redoStack.push(stroke);
-    this.redrawCommitted();
+    // Additive pixels cannot be subtracted, so undo rebuilds from the stroke
+    // list. Defer it to the frame so holding the shortcut replays once, not
+    // once per keypress.
+    this.committedStale = true;
     this.requestPaint();
     this.emit();
   }
@@ -248,7 +237,7 @@ export class NeonEngine {
     if (!stroke) return;
     this.strokes.push(stroke);
     this.replay(stroke);
-    this.requestPaint();
+    this.requestPaint(this.strokeRect(stroke));
     this.emit();
   }
 
@@ -258,7 +247,7 @@ export class NeonEngine {
     this.redoStack = [];
     this.current = null;
     this.lastSample = null;
-    this.redrawCommitted();
+    this.committedStale = true;
     this.requestPaint();
     this.emit();
   }
@@ -291,9 +280,13 @@ export class NeonEngine {
     this.onStateChange(this.state);
   }
 
-  /** Queue a frame that recomposites the whole canvas. */
-  private requestPaint(): void {
-    this.fullRepaint = true;
+  /**
+   * Queue a frame. With a rect only that region is recomposited; without one
+   * the whole canvas is.
+   */
+  private requestPaint(rect?: Rect | null): void {
+    if (rect) this.damage = unionRect(this.damage, rect);
+    else this.fullRepaint = true;
     this.scheduleFrame();
   }
 
@@ -312,6 +305,11 @@ export class NeonEngine {
 
   private paint(): void {
     this.dirty = false;
+    if (this.committedStale) {
+      this.redrawCommitted();
+      this.committedStale = false;
+      this.fullRepaint = true;
+    }
     const glowRect = this.current ? this.refreshGlow(this.current) : null;
     const rect = this.fullRepaint
       ? { x: 0, y: 0, w: this.display.width, h: this.display.height }
@@ -328,22 +326,29 @@ export class NeonEngine {
     ctx.fillStyle = "#000000";
     ctx.fillRect(rect.x, rect.y, rect.w, rect.h);
     ctx.globalCompositeOperation = "lighter";
-    this.blit(this.committed, rect);
-    if (this.current) this.blit(this.glow, rect);
+    this.blitRect(ctx, this.committed, rect);
+    if (this.current) this.blitRect(ctx, this.glow, rect);
     ctx.globalCompositeOperation = "source-over";
   }
 
-  private blit(source: HTMLCanvasElement, rect: Rect): void {
-    this.displayCtx.drawImage(
-      source,
-      rect.x,
-      rect.y,
-      rect.w,
-      rect.h,
-      rect.x,
-      rect.y,
-      rect.w,
-      rect.h,
+  /** Copy one rectangle of `source` onto `target` at the same coordinates. */
+  private blitRect(
+    target: CanvasRenderingContext2D,
+    source: HTMLCanvasElement,
+    rect: Rect,
+  ): void {
+    target.drawImage(source, rect.x, rect.y, rect.w, rect.h, rect.x, rect.y, rect.w, rect.h);
+  }
+
+  /** The region a finished stroke occupies, glow included. */
+  private strokeRect(stroke: Stroke): Rect | null {
+    const style = findStyle(stroke.styleId);
+    return damageRect(
+      stroke.bounds,
+      bloomPad(style, stroke.size, this.dpr),
+      this.dpr,
+      this.tube.width,
+      this.tube.height,
     );
   }
 
@@ -352,7 +357,7 @@ export class NeonEngine {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
       ctx.clearRect(0, 0, this.tube.width, this.tube.height);
     }
-    this.pending = EMPTY_BOUNDS();
+    this.pending = emptyBounds();
   }
 
   /**
@@ -361,8 +366,14 @@ export class NeonEngine {
    */
   private refreshGlow(stroke: Stroke): Rect | null {
     const style = findStyle(stroke.styleId);
-    const rect = this.damageRect(this.pending, style, stroke.size);
-    this.pending = EMPTY_BOUNDS();
+    const rect = damageRect(
+      this.pending,
+      bloomPad(style, stroke.size, this.dpr),
+      this.dpr,
+      this.tube.width,
+      this.tube.height,
+    );
+    this.pending = emptyBounds();
     if (!rect) return null;
 
     this.glowCtx.setTransform(1, 0, 0, 1, 0, 0);
@@ -371,18 +382,27 @@ export class NeonEngine {
     return rect;
   }
 
-  /** Paint a finished stroke straight into the artwork. */
+  /**
+   * Paint a finished stroke straight into the artwork. Only the stroke's own
+   * rectangle is cleared afterwards - clearing three full-screen canvases per
+   * stroke is what made a large undo expensive.
+   */
   private replay(stroke: Stroke): void {
-    this.clearScratch();
     this.paintStroke(stroke);
-    const rect = this.damageRect(stroke.bounds, findStyle(stroke.styleId), stroke.size);
-    if (rect) this.bloom(this.committedCtx, stroke, rect);
-    this.clearScratch();
+    const rect = this.strokeRect(stroke);
+    if (rect) {
+      this.bloom(this.committedCtx, stroke, rect);
+      for (const ctx of [this.tubeCtx, this.coreCtx]) {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(rect.x, rect.y, rect.w, rect.h);
+      }
+    }
   }
 
   private redrawCommitted(): void {
     this.committedCtx.setTransform(1, 0, 0, 1, 0, 0);
     this.committedCtx.clearRect(0, 0, this.committed.width, this.committed.height);
+    this.clearScratch();
     for (const stroke of this.strokes) this.replay(stroke);
   }
 
@@ -395,7 +415,7 @@ export class NeonEngine {
   private paintStroke(stroke: Stroke): void {
     const { samples } = stroke;
     if (samples.length === 0) return;
-    stroke.bounds = EMPTY_BOUNDS();
+    stroke.bounds = emptyBounds();
     if (samples.length === 1) {
       this.paintSegment(stroke, samples[0], samples[0]);
       return;
@@ -416,8 +436,8 @@ export class NeonEngine {
 
     const reach = (width * Math.max(style.tube, 1)) / 2;
     for (const bounds of [stroke.bounds, this.pending]) {
-      grow(bounds, from.x, from.y, reach);
-      grow(bounds, toX, to.y, reach);
+      growBounds(bounds, from.x, from.y, reach);
+      growBounds(bounds, toX, to.y, reach);
     }
 
     const passes: [CanvasRenderingContext2D, number, string][] = [
@@ -452,8 +472,12 @@ export class NeonEngine {
     const reach = stroke.size * this.dpr;
     // Read from a wider box than we write, so the glow of the rest of the
     // stroke still bleeds correctly into the edges of the rebuilt region.
-    const outer = this.expand(inner, this.bloomPad(style, stroke.size));
-
+    const outer = expandRect(
+      inner,
+      bloomPad(style, stroke.size, this.dpr),
+      this.tube.width,
+      this.tube.height,
+    );
     target.save();
     target.setTransform(1, 0, 0, 1, 0, 0);
     target.beginPath();
@@ -463,6 +487,9 @@ export class NeonEngine {
     target.filter = "none";
 
     // The sharp passes carry the crisp edge, so they stay at full resolution.
+    // They must also cover the whole of `inner`: refreshGlow clears that box and
+    // the scratch layers hold the entire stroke, so narrowing them to the newest
+    // samples erases earlier core pixels and leaves specks along the stroke.
     for (const pass of style.bloom) {
       if (pass.blur === 0) this.addSharp(target, this.tube, inner, pass.alpha);
     }
@@ -542,48 +569,4 @@ export class NeonEngine {
     this.patchGlowCtx = context(this.patchGlow);
   }
 
-  /** How far the widest blur of a style reaches, in device px. */
-  private bloomPad(style: NeonStyle, size: number): number {
-    const widest = Math.max(0, ...style.bloom.map((pass) => pass.blur)) * size;
-    // A CSS blur of radius r has faded out by about 3r.
-    return widest * 3 * this.dpr + 2;
-  }
-
-  private expand(rect: Rect, pad: number): Rect {
-    const x = Math.max(0, Math.floor(rect.x - pad));
-    const y = Math.max(0, Math.floor(rect.y - pad));
-    return {
-      x,
-      y,
-      w: Math.min(this.tube.width, Math.ceil(rect.x + rect.w + pad)) - x,
-      h: Math.min(this.tube.height, Math.ceil(rect.y + rect.h + pad)) - y,
-    };
-  }
-
-  /** A painted extent plus the reach of the style's widest blur, in device px. */
-  private damageRect(bounds: Bounds, style: NeonStyle, size: number): Rect | null {
-    const { minX, minY, maxX, maxY } = bounds;
-    if (!Number.isFinite(minX)) return null;
-
-    const pad = this.bloomPad(style, size);
-    const x = Math.max(0, Math.floor(minX * this.dpr - pad));
-    const y = Math.max(0, Math.floor(minY * this.dpr - pad));
-    const right = Math.min(this.tube.width, Math.ceil(maxX * this.dpr + pad));
-    const bottom = Math.min(this.tube.height, Math.ceil(maxY * this.dpr + pad));
-    if (right <= x || bottom <= y) return null;
-    return { x, y, w: right - x, h: bottom - y };
-  }
-
-  private add(
-    target: CanvasRenderingContext2D,
-    source: HTMLCanvasElement,
-    blur: number,
-    alpha: number,
-    rect: Rect,
-  ): void {
-    if (blur > 0 && !supportsFilter) return;
-    target.filter = blur > 0 ? `blur(${blur.toFixed(2)}px)` : "none";
-    target.globalAlpha = alpha;
-    target.drawImage(source, rect.x, rect.y, rect.w, rect.h, rect.x, rect.y, rect.w, rect.h);
-  }
 }

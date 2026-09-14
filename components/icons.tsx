@@ -60,15 +60,6 @@ export function ShareIcon({ className }: IconProps) {
   );
 }
 
-export function BrushIcon({ className }: IconProps) {
-  return (
-    <svg {...base} className={className}>
-      <path d="M3.5 16.5c2.6.3 4-.9 4-2.6a2 2 0 1 0-4 .3z" />
-      <path d="M7.8 12.4 15 5.2a1.7 1.7 0 0 1 2.4 2.4l-7.2 7.2" />
-    </svg>
-  );
-}
-
 export function SizeIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

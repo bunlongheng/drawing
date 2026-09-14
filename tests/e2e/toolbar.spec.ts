@@ -48,6 +48,42 @@ test("panels close on Escape and on an outside click", async ({ page }) => {
   await expect(page.getByRole("dialog")).toBeHidden();
 });
 
+test("arrow keys move through a radio group and change the selection", async ({ page }) => {
+  await page.getByRole("button", { name: /Neon style/ }).click();
+  await expect(page.getByRole("radio", { name: "Classic" })).toBeFocused();
+
+  await page.keyboard.press("ArrowRight");
+  await expect(page.getByRole("button", { name: "Neon style: Laser" })).toBeVisible();
+  await expect(page.getByRole("radio", { name: "Laser" })).toBeFocused();
+
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("button", { name: "Neon style: Classic" })).toBeVisible();
+
+  // Wraps backwards to the last option.
+  await page.keyboard.press("ArrowLeft");
+  await expect(page.getByRole("button", { name: "Neon style: Spectrum" })).toBeVisible();
+
+  await page.keyboard.press("Home");
+  await expect(page.getByRole("button", { name: "Neon style: Classic" })).toBeVisible();
+  await page.keyboard.press("End");
+  await expect(page.getByRole("button", { name: "Neon style: Spectrum" })).toBeVisible();
+});
+
+test("only the selected radio is a tab stop", async ({ page }) => {
+  await page.getByRole("button", { name: /Ink colour/ }).click();
+  const stops = await page
+    .getByRole("radio")
+    .evaluateAll((nodes) => nodes.filter((n) => n.getAttribute("tabindex") === "0").length);
+  expect(stops).toBe(1);
+});
+
+test("closing a panel returns focus to its trigger", async ({ page }) => {
+  const trigger = page.getByRole("button", { name: /Ink colour/ });
+  await trigger.click();
+  await page.keyboard.press("Escape");
+  await expect(trigger).toBeFocused();
+});
+
 test("the toolbar fits the viewport on a phone", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   const box = await page.locator(".toolbar").boundingBox();

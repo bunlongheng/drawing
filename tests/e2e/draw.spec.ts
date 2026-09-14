@@ -53,7 +53,6 @@ async function stroke(
     },
     { pointerType, pressure, from, length },
   );
-  await page.waitForTimeout(120);
 }
 
 test.beforeEach(async ({ page }) => {
@@ -117,6 +116,51 @@ test("clear needs a second tap to confirm", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Confirm clear canvas" })).toBeVisible();
 });
 
+test("touch draws when no pen has been used", async ({ page }) => {
+  await stroke(page, { pointerType: "touch" });
+  expect(await litPixels(page)).toBeGreaterThan(500);
+});
+
+test("a second pointer during a stroke is ignored", async ({ page }) => {
+  await page.evaluate(() => {
+    const canvas = document.querySelector("canvas") as HTMLCanvasElement;
+    const rect = canvas.getBoundingClientRect();
+    const fire = (type: string, id: number, x: number, y: number) =>
+      canvas.dispatchEvent(
+        new PointerEvent(type, {
+          pointerId: id,
+          pointerType: "touch",
+          pressure: 0.5,
+          isPrimary: id === 1,
+          bubbles: true,
+          clientX: rect.left + x,
+          clientY: rect.top + y,
+        }),
+      );
+    fire("pointerdown", 1, 100, 100);
+    fire("pointermove", 1, 160, 100);
+    // A second finger must not start or extend anything.
+    fire("pointerdown", 2, 100, 400);
+    fire("pointermove", 2, 300, 400);
+    fire("pointerup", 2, 300, 400);
+    fire("pointerup", 1, 160, 100);
+  });
+  await page.getByRole("button", { name: "Undo" }).click();
+  expect(await litPixels(page)).toBe(0);
+});
+
+test("artwork survives a viewport change, and undo still works after it", async ({ page }) => {
+  await stroke(page, { pointerType: "pen", pressure: 0.9 });
+  expect(await litPixels(page)).toBeGreaterThan(500);
+
+  await page.setViewportSize({ width: 700, height: 900 });
+  expect(await litPixels(page)).toBeGreaterThan(500);
+  await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  expect(await litPixels(page)).toBe(0);
+});
+
 test("keyboard undo and redo", async ({ page }) => {
   await stroke(page);
   const modifier = process.platform === "darwin" ? "Meta" : "Control";
@@ -126,6 +170,13 @@ test("keyboard undo and redo", async ({ page }) => {
 
   await page.keyboard.press(`${modifier}+Shift+z`);
   expect(await litPixels(page)).toBeGreaterThan(0);
+});
+
+test("Cmd+S saves a PNG", async ({ page }) => {
+  await stroke(page);
+  const download = page.waitForEvent("download");
+  await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+s`);
+  expect((await download).suggestedFilename()).toMatch(/\.png$/);
 });
 
 test("download produces a PNG named for the moment it was saved", async ({ page }) => {
@@ -159,6 +210,43 @@ test("share hands the file to the native sheet when the platform offers one", as
   );
   expect(shared).toHaveLength(1);
   expect(shared![0]).toMatch(/^neon-.+\.png$/);
+});
+
+test("a dismissed share sheet is not reported as shared", async ({ page }) => {
+  await page.evaluate(() => {
+    const nav = navigator as Navigator & { canShare?: unknown; share?: unknown };
+    nav.canShare = () => true;
+    nav.share = () => Promise.reject(new DOMException("cancelled", "AbortError"));
+  });
+  await stroke(page);
+  await page.getByRole("button", { name: "Share" }).click();
+  await expect(page.getByRole("button", { name: "Share" })).toBeEnabled();
+  await expect(page.getByRole("status")).toHaveText("");
+});
+
+test("a failed share still gets the drawing to the user as a download", async ({ page }) => {
+  await page.evaluate(() => {
+    const nav = navigator as Navigator & { canShare?: unknown; share?: unknown };
+    nav.canShare = () => true;
+    nav.share = () => Promise.reject(new DOMException("blocked", "NotAllowedError"));
+  });
+  await stroke(page);
+  const download = page.waitForEvent("download");
+  await page.getByRole("button", { name: "Share" }).click();
+  expect((await download).suggestedFilename()).toMatch(/\.png$/);
+  await expect(page.getByRole("status")).toHaveText("Saved as PNG");
+});
+
+test("an export that cannot encode surfaces an error and stays usable", async ({ page }) => {
+  await page.evaluate(() => {
+    HTMLCanvasElement.prototype.toBlob = function (callback: BlobCallback) {
+      callback(null);
+    };
+  });
+  await stroke(page);
+  await page.getByRole("button", { name: "Download PNG" }).click();
+  await expect(page.getByRole("status")).toHaveText("Export failed - please try again");
+  await expect(page.getByRole("button", { name: "Download PNG" })).toBeEnabled();
 });
 
 test("share falls back to a download where the platform cannot share files", async ({ page }) => {

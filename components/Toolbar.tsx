@@ -13,6 +13,7 @@ import {
   inkColor,
 } from "@/lib/neon";
 import { Popover } from "./Popover";
+import { RadioGroup } from "./RadioGroup";
 import { StrokePreview } from "./StrokePreview";
 import {
   ClearIcon,
@@ -32,6 +33,8 @@ type ToolbarProps = {
   onUndo: () => void;
   onRedo: () => void;
   onClear: () => void;
+  /** Called when the first tap arms the confirm, so it can be announced. */
+  onClearArmed: () => void;
   onDownload: () => void;
   onShare: () => void;
 };
@@ -47,6 +50,7 @@ export function Toolbar({
   onUndo,
   onRedo,
   onClear,
+  onClearArmed,
   onDownload,
   onShare,
 }: ToolbarProps) {
@@ -66,6 +70,7 @@ export function Toolbar({
   const handleClear = () => {
     if (!armed) {
       setClearArmed(true);
+      onClearArmed();
       return;
     }
     setClearArmed(false);
@@ -83,22 +88,24 @@ export function Toolbar({
         accent={accent}
         trigger={<StrokePreview style={style} hsl={color.hsl} className="h-6 w-8" />}
       >
-        <div role="radiogroup" aria-label="Neon style" className="grid grid-cols-3 gap-1">
-          {STYLES.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              role="radio"
-              aria-checked={option.id === style.id}
-              onClick={() => onBrushChange({ styleId: option.id })}
-              className="swatch"
-              data-active={option.id === style.id || undefined}
-            >
-              <StrokePreview style={option} hsl={color.hsl} className="h-7 w-11" />
-              <span className="micro">{option.name}</span>
-            </button>
-          ))}
-        </div>
+        <RadioGroup
+          label="Neon style"
+          options={STYLES.map((option) => ({ id: option.id, label: option.name }))}
+          value={style.id}
+          onChange={(styleId) => onBrushChange({ styleId })}
+          className="grid grid-cols-3 gap-1"
+          optionClassName="swatch"
+        >
+          {(option) => {
+            const preset = findStyle(option.id);
+            return (
+              <>
+                <StrokePreview style={preset} hsl={color.hsl} className="h-7 w-11" />
+                <span className="micro">{preset.name}</span>
+              </>
+            );
+          }}
+        </RadioGroup>
       </Popover>
 
       <Popover
@@ -111,29 +118,25 @@ export function Toolbar({
           />
         }
       >
-        <div role="radiogroup" aria-label="Ink colour" className="flex gap-1.5">
-          {COLORS.map((option) => {
-            const css = inkColor(option.hsl, 0);
+        <RadioGroup
+          label="Ink colour"
+          options={COLORS.map((option) => ({ id: option.id, label: option.name }))}
+          value={color.id}
+          onChange={(colorId) => onBrushChange({ colorId })}
+          className="flex gap-1.5"
+          optionClassName="dot"
+          titleOnly
+        >
+          {(option) => {
+            const css = inkColor(findColor(option.id).hsl, 0);
             return (
-              <button
-                key={option.id}
-                type="button"
-                role="radio"
-                aria-checked={option.id === color.id}
-                aria-label={option.name}
-                title={option.name}
-                onClick={() => onBrushChange({ colorId: option.id })}
-                className="dot"
-                data-active={option.id === color.id || undefined}
-              >
-                <span
-                  className="block h-5 w-5 rounded-full"
-                  style={{ background: css, boxShadow: `0 0 14px 1px ${css}` }}
-                />
-              </button>
+              <span
+                className="block h-5 w-5 rounded-full"
+                style={{ background: css, boxShadow: `0 0 14px 1px ${css}` }}
+              />
             );
-          })}
-        </div>
+          }}
+        </RadioGroup>
       </Popover>
 
       <Popover

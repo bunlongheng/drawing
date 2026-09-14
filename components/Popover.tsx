@@ -18,19 +18,31 @@ export function Popover({ label, trigger, children, accent }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
   const panelId = useId();
 
   useEffect(() => {
     if (!open) return;
 
+    // Move focus into the panel: the trigger says aria-haspopup, so assistive
+    // tech expects to land inside rather than having to tab forward.
+    panelRef.current
+      ?.querySelector<HTMLElement>('[role="radio"][aria-checked="true"], input, button')
+      ?.focus();
+
+    const close = (restoreFocus: boolean) => {
+      const hadFocus = rootRef.current?.contains(document.activeElement);
+      setOpen(false);
+      if (restoreFocus || hadFocus) triggerRef.current?.focus();
+    };
+
     const onPointerDown = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
+      if (!rootRef.current?.contains(event.target as Node)) close(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
       event.stopPropagation();
-      setOpen(false);
-      triggerRef.current?.focus();
+      close(true);
     };
 
     document.addEventListener("pointerdown", onPointerDown, true);
@@ -59,6 +71,7 @@ export function Popover({ label, trigger, children, accent }: PopoverProps) {
 
       {open && (
         <div
+          ref={panelRef}
           id={panelId}
           role="dialog"
           aria-label={label}

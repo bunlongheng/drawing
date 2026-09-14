@@ -37,8 +37,14 @@ const nextConfig: NextConfig = {
           { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
           {
             key: "Permissions-Policy",
-            value: "camera=(), microphone=(), geolocation=(), interest-cohort=()",
+            value: "camera=(), microphone=(), geolocation=(), browsing-topics=()",
           },
+          // Drops the opener handle a cross-origin window.open would keep on us.
+          // COEP is not set (nothing uses SharedArrayBuffer) and CORP is left
+          // open on purpose - /icon.png is embedded cross-origin by the
+          // local-apps dashboard and Stickies.
+          { key: "Cross-Origin-Opener-Policy", value: "same-origin" },
+          { key: "X-DNS-Prefetch-Control", value: "off" },
           {
             key: "Strict-Transport-Security",
             value: "max-age=63072000; includeSubDomains; preload",

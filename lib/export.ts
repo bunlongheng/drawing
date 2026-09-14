@@ -2,7 +2,7 @@
 
 import { exportFilename } from "./neon";
 
-export type ExportResult = "shared" | "downloaded";
+export type ExportResult = "shared" | "downloaded" | "cancelled";
 
 function download(blob: Blob, filename: string): void {
   const url = URL.createObjectURL(blob);
@@ -24,8 +24,9 @@ export function downloadBlob(blob: Blob): string {
 
 /**
  * Share via the native sheet when the platform supports sharing files
- * (iPadOS, iOS, Android). Falls back to a download everywhere else, and when
- * the user dismisses the sheet we simply do nothing.
+ * (iPadOS, iOS, Android). Falls back to a download everywhere else. A
+ * dismissed sheet reports "cancelled" - nothing left the device, so telling
+ * the user it was shared would be a lie.
  */
 export async function shareBlob(blob: Blob, title: string): Promise<ExportResult> {
   const filename = exportFilename();
@@ -36,7 +37,7 @@ export async function shareBlob(blob: Blob, title: string): Promise<ExportResult
       await navigator.share({ files: [file], title });
       return "shared";
     } catch (error) {
-      if (error instanceof DOMException && error.name === "AbortError") return "shared";
+      if (error instanceof DOMException && error.name === "AbortError") return "cancelled";
       // Any other failure (permission, unsupported payload) falls through.
     }
   }

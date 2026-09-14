@@ -23,6 +23,8 @@ export function NeonCanvas() {
   const engineRef = useRef<NeonEngine | null>(null);
   const activePointer = useRef<number | null>(null);
   const penSeen = useRef(false);
+  /** Cached at pointerdown: the canvas is fixed, so it cannot move mid-stroke. */
+  const canvasRect = useRef<DOMRect | null>(null);
 
   // Rendered client-side only (see NeonCanvasClient), so stored preferences can
   // seed the very first render without a hydration mismatch.
@@ -34,7 +36,7 @@ export function NeonCanvas() {
   });
   const [drawing, setDrawing] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [toast, setToast] = useState("");
+  const [toast, setToast] = useState<{ text: string; tone?: "error" } | null>(null);
 
   useEffect(() => {
     try {
@@ -46,7 +48,7 @@ export function NeonCanvas() {
 
   useEffect(() => {
     if (!toast) return;
-    const timer = setTimeout(() => setToast(""), TOAST_MS);
+    const timer = setTimeout(() => setToast(null), TOAST_MS);
     return () => clearTimeout(timer);
   }, [toast]);
 
@@ -57,19 +59,26 @@ export function NeonCanvas() {
     const engine = new NeonEngine(canvas, setState);
     engineRef.current = engine;
 
+    // Resizing replays every stroke, so a burst of observer callbacks during a
+    // rotation or a Split View drag is collapsed into one replay per frame.
+    let pending = 0;
     const fit = () => {
-      const rect = canvas.getBoundingClientRect();
-      engine.resize(rect.width, rect.height, window.devicePixelRatio);
+      if (pending) return;
+      pending = requestAnimationFrame(() => {
+        pending = 0;
+        const rect = canvas.getBoundingClientRect();
+        canvasRect.current = rect;
+        engine.resize(rect.width, rect.height, window.devicePixelRatio);
+      });
     };
-    fit();
 
     const observer = new ResizeObserver(fit);
     observer.observe(canvas);
-    window.addEventListener("resize", fit);
+    fit();
 
     return () => {
+      if (pending) cancelAnimationFrame(pending);
       observer.disconnect();
-      window.removeEventListener("resize", fit);
       engine.destroy();
       engineRef.current = null;
     };
@@ -92,13 +101,15 @@ export function NeonCanvas() {
         const blob = await engine.toBlob();
         if (mode === "download") {
           downloadBlob(blob);
-          setToast("Saved as PNG");
+          setToast({ text: "Saved as PNG" });
         } else {
           const result = await shareBlob(blob, "Neon drawing");
-          setToast(result === "shared" ? "Shared" : "Saved as PNG");
+          // A dismissed share sheet needs no announcement.
+          if (result === "shared") setToast({ text: "Shared" });
+          else if (result === "downloaded") setToast({ text: "Saved as PNG" });
         }
       } catch {
-        setToast("Export failed - please try again");
+        setToast({ text: "Export failed - please try again", tone: "error" });
       } finally {
         setBusy(false);
       }
@@ -153,6 +164,7 @@ export function NeonCanvas() {
     setDrawing(true);
 
     const rect = canvas.getBoundingClientRect();
+    canvasRect.current = rect;
     const { x, y } = pointFrom(event.nativeEvent, rect);
     engine.begin(brush, x, y, event.pressure, event.pointerType === "pen");
   };
@@ -163,7 +175,9 @@ export function NeonCanvas() {
     const engine = engineRef.current;
     if (!canvas || !engine) return;
 
-    const rect = canvas.getBoundingClientRect();
+    // Reusing the pointerdown rect avoids a layout flush on every one of the
+    // 120 move events a Pencil delivers each second.
+    const rect = canvasRect.current ?? canvas.getBoundingClientRect();
     const isPen = event.pointerType === "pen";
     // Coalesced events carry the full 120Hz Pencil sample rate.
     const events = event.nativeEvent.getCoalescedEvents?.() ?? [];
@@ -187,7 +201,11 @@ export function NeonCanvas() {
       <canvas
         ref={canvasRef}
         className="surface"
-        aria-label="Neon drawing canvas"
+        aria-label={
+          state.isEmpty
+            ? "Neon drawing canvas, empty. Draw with a pencil, finger or mouse."
+            : "Neon drawing canvas, drawn on. Draw with a pencil, finger or mouse."
+        }
         role="img"
         onPointerDown={handlePointerDown}
         onPointerMove={handlePointerMove}
@@ -211,12 +229,19 @@ export function NeonCanvas() {
         onUndo={() => void withEngine((engine) => engine.undo())}
         onRedo={() => void withEngine((engine) => engine.redo())}
         onClear={() => void withEngine((engine) => engine.clear())}
+        onClearArmed={() => setToast({ text: "Tap clear again to erase" })}
         onDownload={() => void exportCanvas("download")}
         onShare={() => void exportCanvas("share")}
       />
 
-      <p className="toast" role="status" aria-live="polite" data-show={toast ? "" : undefined}>
-        {toast}
+      <p
+        className="toast"
+        role="status"
+        aria-live="polite"
+        data-show={toast ? "" : undefined}
+        data-tone={toast?.tone}
+      >
+        {toast?.text ?? ""}
       </p>
     </main>
   );
