@@ -32,7 +32,9 @@ A minimal neon sketchpad for Apple Pencil. Pure black canvas, pressure-sensitive
 - **Apple Pencil first.** Pressure drives stroke width, and coalesced pointer events capture the full 120 Hz sample rate rather than the 60 Hz the browser hands you by default.
 - **Palm rejection.** Once a Pencil has been seen, touch input is ignored, so you can rest your hand on the glass.
 - **4 neon styles,** chosen to differ in shape rather than in degree: **Classic** (white-hot core in a saturated halo), **Halo** (a fat soft light with no hard centre), **Laser** (a razor line with a fierce tight glow) and **Wire** (a flat coloured line, barely lit).
-- **7 solid inks and 3 gradients** - Sunset (pink to orange), Ultraviolet (violet to cyan) and Toxic (green to yellow) ease between two stops as the stroke travels, so a line shifts colour along its length.
+- **8 gradient inks.** Every ink is two stops the stroke eases between as it travels, so a line shifts colour along its length: Sunset, Ember, Toxic, Mint, Lagoon, Ultraviolet, Vapor and Frost.
+- **6 ambient animations.** Off, Breathe (the drawing swells and dims), Flicker (an old sign), Sparkle (star glints), Firefly (motes drifting near the lines) and Flow (a bright head running the strokes like current through a tube).
+- **Replay.** Press play and the drawing redraws itself stroke by stroke at 0.5x, 1x, 1.5x or 2x - so someone can watch how it was made.
 - **A 2-48 px brush,** remembered between sessions along with the style and ink, and validated on the way back in.
 - **Always black.** The canvas is pure `#000000`, so the PNG you export is exactly what you drew.
 - **Download or share.** PNG at device resolution, through the native share sheet on iPadOS and iOS and a download everywhere else.
@@ -114,6 +116,8 @@ That last point is what makes it usable: a long sweeping stroke went from **107 
 | Server rendering | None, client-only | SSR the shell | A canvas has nothing to prerender, and stored preferences seed the first paint with no hydration mismatch | A blank frame before hydration |
 | Style swatches | Drawn by the real engine | An SVG lookalike | The picker cannot disagree with the brush, and the recipe exists in one place | A small canvas per swatch |
 | Colour variation | Two-stop gradient inks | A rainbow hue-rotate style | Two neighbouring hues read as one ink shifting; a full spectrum sweep read as garish | A gradient needs a travel distance to show |
+| Animation state | Pure functions of time | Particle objects updated per frame | Nothing drifts out of sync after a pause, and the maths is testable without a canvas | Positions are hashed, not simulated |
+| Replay timing | Constant pace over samples | The original timestamps | A steady pace is easier to learn from, and no per-sample clock has to be stored | It does not reproduce your hesitations |
 | Gradient progress | Triangle wave over distance | A ramp across the stroke | The total length is unknown while drawing, and easing back makes a long stroke a ribbon | A very long stroke repeats the sweep |
 
 ## Tech stack
@@ -146,6 +150,8 @@ To draw on an iPad on the same network, run `npm run dev -- -H 0.0.0.0` and brow
 | Change style, ink or size | The three controls on the left of the toolbar |
 | Undo / redo | Toolbar, or `Cmd+Z` and `Cmd+Shift+Z` (`Ctrl` on Windows and Linux) |
 | Clear | Tap the bin, then tap again to confirm |
+| Animate or set replay speed | The spark control in the toolbar |
+| Replay the drawing | The play button; drawing again stops it |
 | Save a PNG | Toolbar, or `Cmd+S` |
 | Share | The share button - native sheet where available, otherwise a download |
 
@@ -162,8 +168,8 @@ The toolbar fades while you draw and comes back when you lift off. Arrow keys mo
 ```bash
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
-npm run test       # Vitest - 66 tests over the pure logic and the engine
-npm run test:e2e   # Playwright - 28 cases on Chromium and WebKit/iPad
+npm run test       # Vitest - 67 tests over the pure logic and the engine
+npm run test:e2e   # Playwright - 30 cases on Chromium and WebKit/iPad
 npm run test:all   # both suites
 ```
 
@@ -196,7 +202,8 @@ app/
   globals.css        design tokens and the toolbar styling
   manifest.ts        Add to Home Screen
   error.tsx          shown if the browser refuses a 2D context
-  icon.png           app icon (favicon.ico and apple-icon.png are the variants)
+  icon.png           app icon, also the PWA icon
+  apple-icon.png     180px touch icon for Add to Home Screen
 components/
   NeonCanvas.tsx     pointer handling, palm rejection, shortcuts, export
   NeonCanvasClient.tsx  client-only boundary
@@ -207,6 +214,7 @@ components/
   icons.tsx          line icons
 lib/
   neon.ts            palette, style presets, colour and width maths (pure)
+  effects.ts         ambient animation, as pure functions of time (pure)
   geometry.ts        bounds and damage-rectangle maths (pure)
   engine.ts          canvas layers, bloom, undo stack, PNG export
   export.ts          download and Web Share

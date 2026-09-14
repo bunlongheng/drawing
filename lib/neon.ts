@@ -43,16 +43,12 @@ export type NeonStyle = {
   bloom: BloomPass[];
 };
 
+/**
+ * Every ink is a gradient: two stops the stroke eases between as it travels.
+ * The pairs stay within a neighbouring arc of the hue circle so a line reads as
+ * one ink shifting, never as a rainbow.
+ */
 export const COLORS: NeonColor[] = [
-  { id: "cyan", name: "Cyan", hsl: { h: 186, s: 100, l: 55 } },
-  { id: "magenta", name: "Magenta", hsl: { h: 320, s: 100, l: 58 } },
-  { id: "lime", name: "Lime", hsl: { h: 140, s: 100, l: 52 } },
-  { id: "amber", name: "Amber", hsl: { h: 38, s: 100, l: 55 } },
-  { id: "violet", name: "Violet", hsl: { h: 266, s: 100, l: 64 } },
-  { id: "rose", name: "Rose", hsl: { h: 345, s: 100, l: 60 } },
-  { id: "white", name: "White", hsl: { h: 200, s: 30, l: 88 } },
-  // Gradients: two stops the stroke eases between as it travels. Kept to
-  // neighbouring hues so they read as one ink shifting, not as a rainbow.
   {
     id: "sunset",
     name: "Sunset",
@@ -60,16 +56,46 @@ export const COLORS: NeonColor[] = [
     hsl2: { h: 30, s: 98, l: 56 },
   },
   {
-    id: "ultraviolet",
-    name: "Ultraviolet",
-    hsl: { h: 276, s: 96, l: 64 },
-    hsl2: { h: 190, s: 96, l: 56 },
+    id: "ember",
+    name: "Ember",
+    hsl: { h: 4, s: 98, l: 58 },
+    hsl2: { h: 44, s: 100, l: 56 },
   },
   {
     id: "toxic",
     name: "Toxic",
-    hsl: { h: 150, s: 96, l: 52 },
-    hsl2: { h: 52, s: 98, l: 56 },
+    hsl: { h: 148, s: 96, l: 52 },
+    hsl2: { h: 54, s: 100, l: 56 },
+  },
+  {
+    id: "mint",
+    name: "Mint",
+    hsl: { h: 150, s: 96, l: 54 },
+    hsl2: { h: 190, s: 98, l: 58 },
+  },
+  {
+    id: "lagoon",
+    name: "Lagoon",
+    hsl: { h: 186, s: 100, l: 56 },
+    hsl2: { h: 232, s: 96, l: 62 },
+  },
+  {
+    id: "ultraviolet",
+    name: "Ultraviolet",
+    hsl: { h: 278, s: 96, l: 64 },
+    hsl2: { h: 190, s: 96, l: 56 },
+  },
+  {
+    id: "vapor",
+    name: "Vapor",
+    hsl: { h: 318, s: 98, l: 62 },
+    hsl2: { h: 264, s: 96, l: 62 },
+  },
+  {
+    id: "frost",
+    name: "Frost",
+    hsl: { h: 202, s: 62, l: 76 },
+    hsl2: { h: 188, s: 26, l: 95 },
   },
 ];
 
@@ -138,7 +164,7 @@ export const STYLES: NeonStyle[] = [
 export type Brush = { styleId: string; colorId: string; size: number };
 
 export const DEFAULT_STYLE_ID = "classic";
-export const DEFAULT_COLOR_ID = "cyan";
+export const DEFAULT_COLOR_ID = "sunset";
 
 export const MIN_SIZE = 2;
 export const MAX_SIZE = 48;

@@ -19,6 +19,16 @@
  */
 
 import {
+  DEFAULT_EFFECT_ID,
+  FLOW_TRAIL,
+  type EffectId,
+  brightnessAt,
+  flowHeadAt,
+  hasParticles,
+  moteRadius,
+  particlesAt,
+} from "./effects";
+import {
   type Bounds,
   type Rect,
   bloomPad,
@@ -32,6 +42,7 @@ import {
   MIN_SAMPLE_DISTANCE,
   type BloomPass,
   type Brush,
+  type Hsl,
   type NeonStyle,
   distance,
   findColor,
@@ -62,7 +73,22 @@ export type Stroke = {
 export type { Brush };
 export type { Rect };
 
-export type EngineState = { canUndo: boolean; canRedo: boolean; isEmpty: boolean };
+export type EngineState = {
+  canUndo: boolean;
+  canRedo: boolean;
+  isEmpty: boolean;
+  /** True while a replay is running, so the toolbar can show Stop. */
+  replaying: boolean;
+};
+
+/** One point of the artwork, used to place particles and the replay head. */
+type IndexPoint = { x: number; y: number; hsl: Hsl };
+
+/** Samples per second a replay paints at speed 1. */
+const REPLAY_RATE = 460;
+
+/** At most this many points back the artwork for particles - plenty, and cheap. */
+const MAX_INDEX = 900;
 
 /** Retina is plenty; beyond it the bloom passes cost more than they show. */
 const MAX_DPR = 2.5;
@@ -127,6 +153,20 @@ export class NeonEngine {
   private dpr = 1;
   private frame = 0;
   private dirty = false;
+
+  private effectId: EffectId = DEFAULT_EFFECT_ID;
+  /** rAF handle for the continuous loop that animation and replay need. */
+  private loop = 0;
+  /** Flat sample of the artwork, rebuilt when the stroke list changes. */
+  private index: IndexPoint[] = [];
+  private indexStale = true;
+  private replayState: {
+    stroke: number;
+    sample: number;
+    budget: number;
+    last: number;
+    speed: number;
+  } | null = null;
   /** Device-px region the next frame must recomposite. */
   private damage: Rect | null = null;
   private fullRepaint = true;
@@ -233,6 +273,7 @@ export class NeonEngine {
     this.clearScratch();
 
     this.maybeCheckpoint();
+    this.indexStale = true;
     this.requestPaint(rect);
     this.emit();
   }
@@ -245,6 +286,7 @@ export class NeonEngine {
     // list. Defer it to the frame so holding the shortcut replays once, not
     // once per keypress.
     this.committedStale = true;
+    this.indexStale = true;
     this.requestPaint();
     this.emit();
   }
@@ -254,6 +296,7 @@ export class NeonEngine {
     if (!stroke) return;
     this.strokes.push(stroke);
     this.replay(stroke);
+    this.indexStale = true;
     this.requestPaint(this.strokeRect(stroke));
     this.emit();
   }
@@ -266,7 +309,10 @@ export class NeonEngine {
     this.lastSample = null;
     this.checkpointCount = 0;
     this.committedStale = true;
+    this.indexStale = true;
+    this.replayState = null;
     this.requestPaint();
+    this.syncLoop();
     this.emit();
   }
 
@@ -275,7 +321,42 @@ export class NeonEngine {
       canUndo: this.strokes.length > 0,
       canRedo: this.redoStack.length > 0,
       isEmpty: this.strokes.length === 0,
+      replaying: this.replayState !== null,
     };
+  }
+
+  /** Ambient animation. "off" stops the loop entirely rather than idling. */
+  setEffect(id: EffectId): void {
+    if (this.effectId === id) return;
+    this.effectId = id;
+    this.requestPaint();
+    this.syncLoop();
+  }
+
+  /** Redraw everything from the start, at `speed` times the normal pace. */
+  startReplay(speed: number): void {
+    if (this.strokes.length === 0) return;
+    this.current = null;
+    this.lastSample = null;
+    this.replayState = { stroke: 0, sample: 0, budget: 0, last: performance.now(), speed };
+    this.committedCtx.setTransform(1, 0, 0, 1, 0, 0);
+    this.committedCtx.clearRect(0, 0, this.committed.width, this.committed.height);
+    this.checkpointCount = 0;
+    this.clearScratch();
+    this.requestPaint();
+    this.syncLoop();
+    this.emit();
+  }
+
+  /** Stop a replay and put the finished drawing back on screen. */
+  stopReplay(): void {
+    if (!this.replayState) return;
+    this.replayState = null;
+    this.clearScratch();
+    this.committedStale = true;
+    this.requestPaint();
+    this.syncLoop();
+    this.emit();
   }
 
   /** PNG of exactly what is on screen, at device resolution. */
@@ -291,11 +372,207 @@ export class NeonEngine {
 
   destroy(): void {
     if (this.frame) cancelAnimationFrame(this.frame);
+    if (this.loop) cancelAnimationFrame(this.loop);
     this.frame = 0;
+    this.loop = 0;
+    this.replayState = null;
   }
 
   private emit(): void {
     this.onStateChange(this.state);
+  }
+
+  /** Animation and replay need a frame every tick; nothing else does. */
+  private syncLoop(): void {
+    const wanted = this.effectId !== "off" || this.replayState !== null;
+    if (wanted && !this.loop) {
+      const tick = (now: number) => {
+        this.loop = requestAnimationFrame(tick);
+        if (this.replayState) this.advanceReplay(now);
+        this.paintAnimated(now);
+      };
+      this.loop = requestAnimationFrame(tick);
+    } else if (!wanted && this.loop) {
+      cancelAnimationFrame(this.loop);
+      this.loop = 0;
+      this.requestPaint();
+    }
+  }
+
+  /**
+   * Full composite with the ambient animation on top.
+   *
+   * The damage-rect path cannot be used here: an envelope effect changes every
+   * pixel of the artwork, and particles move anywhere.
+   */
+  private paintAnimated(nowMs: number): void {
+    if (this.committedStale) {
+      this.redrawCommitted();
+      this.committedStale = false;
+    }
+    const seconds = nowMs / 1000;
+    const ctx = this.displayCtx;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalCompositeOperation = "source-over";
+    ctx.filter = "none";
+    ctx.globalAlpha = 1;
+    ctx.fillStyle = "#000000";
+    ctx.fillRect(0, 0, this.display.width, this.display.height);
+
+    ctx.globalCompositeOperation = "lighter";
+    ctx.globalAlpha = brightnessAt(this.effectId, seconds);
+    ctx.drawImage(this.committed, 0, 0);
+    ctx.globalAlpha = 1;
+
+    // The stroke in hand, or the one a replay is partway through.
+    if (this.current) this.refreshGlow(this.current);
+    if (this.current || this.replayState) ctx.drawImage(this.glow, 0, 0);
+
+    if (hasParticles(this.effectId)) this.paintParticles(ctx, seconds);
+    ctx.globalCompositeOperation = "source-over";
+    this.dirty = false;
+  }
+
+  /** A thinned-out copy of the artwork, for placing particles on it. */
+  private artworkIndex(): IndexPoint[] {
+    if (!this.indexStale) return this.index;
+    this.indexStale = false;
+
+    const total = this.strokes.reduce((n, stroke) => n + stroke.samples.length, 0);
+    const step = Math.max(1, Math.ceil(total / MAX_INDEX));
+    const points: IndexPoint[] = [];
+    for (const stroke of this.strokes) {
+      const color = findColor(stroke.colorId);
+      for (let i = 0; i < stroke.samples.length; i += step) {
+        const sample = stroke.samples[i];
+        points.push({ x: sample.x, y: sample.y, hsl: colorAt(color, sample.d, stroke.size) });
+      }
+    }
+    this.index = points;
+    return points;
+  }
+
+  private paintParticles(ctx: CanvasRenderingContext2D, seconds: number): void {
+    const points = this.artworkIndex();
+    if (points.length === 0) return;
+    ctx.save();
+    ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
+    ctx.globalCompositeOperation = "lighter";
+
+    const base = moteRadius(this.effectId);
+    if (this.effectId === "flow") {
+      const head = Math.floor(flowHeadAt(seconds) * points.length);
+      for (let i = FLOW_TRAIL - 1; i >= 0; i -= 1) {
+        const point = points[(head - i + points.length * 2) % points.length];
+        const fade = 1 - i / FLOW_TRAIL;
+        this.paintMote(ctx, point, point.x, point.y, fade * fade, base * (0.35 + fade), false);
+      }
+    } else {
+      for (const particle of particlesAt(this.effectId, seconds)) {
+        if (particle.alpha <= 0.01) continue;
+        const point = points[Math.min(points.length - 1, Math.floor(particle.at * points.length))];
+        this.paintMote(
+          ctx,
+          point,
+          point.x + particle.dx,
+          point.y + particle.dy,
+          particle.alpha,
+          base * particle.scale,
+          particle.star,
+        );
+      }
+    }
+    ctx.restore();
+  }
+
+  /** One soft dot of light, optionally with a four-point glint through it. */
+  private paintMote(
+    ctx: CanvasRenderingContext2D,
+    point: IndexPoint,
+    x: number,
+    y: number,
+    alpha: number,
+    radius: number,
+    star: boolean,
+  ): void {
+    const core = inkColor(point.hsl, 0.85);
+    const edge = inkColor(point.hsl, 0);
+
+    const halo = ctx.createRadialGradient(x, y, 0, x, y, radius);
+    halo.addColorStop(0, core);
+    halo.addColorStop(0.28, edge);
+    halo.addColorStop(1, "rgba(0,0,0,0)");
+    ctx.globalAlpha = alpha * 0.9;
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, Math.PI * 2);
+    ctx.fill();
+
+    if (!star) return;
+    const arm = radius * 1.9;
+    ctx.globalAlpha = alpha;
+    ctx.strokeStyle = core;
+    ctx.lineWidth = 1.1;
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    ctx.moveTo(x - arm, y);
+    ctx.lineTo(x + arm, y);
+    ctx.moveTo(x, y - arm);
+    ctx.lineTo(x, y + arm);
+    ctx.stroke();
+  }
+
+  /** Paint the next slice of a replay. */
+  private advanceReplay(nowMs: number): void {
+    const replay = this.replayState;
+    if (!replay) return;
+
+    replay.budget += ((nowMs - replay.last) / 1000) * REPLAY_RATE * replay.speed;
+    replay.last = nowMs;
+
+    let steps = Math.floor(replay.budget);
+    if (steps <= 0) return;
+    replay.budget -= steps;
+    // A slow tab can bank a huge budget; never paint more than a whole frame.
+    steps = Math.min(steps, 4000);
+
+    while (steps > 0 && replay.stroke < this.strokes.length) {
+      const stroke = this.strokes[replay.stroke];
+      const samples = stroke.samples;
+
+      if (replay.sample === 0) {
+        this.clearScratch();
+        this.paintSegment(stroke, samples[0], samples[0]);
+        replay.sample = 1;
+        steps -= 1;
+        continue;
+      }
+
+      const take = Math.min(steps, samples.length - replay.sample);
+      for (let i = 0; i < take; i += 1) {
+        this.paintSegment(stroke, samples[replay.sample - 1], samples[replay.sample]);
+        replay.sample += 1;
+      }
+      steps -= take;
+
+      if (replay.sample >= samples.length) {
+        const rect = this.strokeRect(stroke);
+        if (rect) this.bloom(this.committedCtx, stroke, rect);
+        this.clearScratch();
+        replay.stroke += 1;
+        replay.sample = 0;
+      }
+    }
+
+    if (replay.stroke >= this.strokes.length) {
+      this.replayState = null;
+      this.indexStale = true;
+      this.syncLoop();
+      this.emit();
+      return;
+    }
+    // Bloom the stroke still in progress so it grows on screen as it is drawn.
+    this.refreshGlow(this.strokes[replay.stroke]);
   }
 
   /**

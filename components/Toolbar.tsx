@@ -12,23 +12,33 @@ import {
   findColor,
   findStyle,
   inkColor,
-  isGradient,
 } from "@/lib/neon";
+import { EFFECTS, type EffectId, findEffect } from "@/lib/effects";
 import { Popover } from "./Popover";
 import { RadioGroup } from "./RadioGroup";
 import { StrokePreview } from "./StrokePreview";
 import {
   ClearIcon,
   DownloadIcon,
+  PlayIcon,
   RedoIcon,
   ShareIcon,
   SizeIcon,
+  SparkIcon,
+  StopIcon,
   UndoIcon,
 } from "./icons";
+
+export const REPLAY_SPEEDS = [0.5, 1, 1.5, 2] as const;
 
 type ToolbarProps = {
   brush: Brush;
   onBrushChange: (patch: Partial<Brush>) => void;
+  effectId: EffectId;
+  onEffectChange: (id: EffectId) => void;
+  replaySpeed: number;
+  onReplaySpeedChange: (speed: number) => void;
+  onTogglePlay: () => void;
   state: EngineState;
   busy: boolean;
   dimmed: boolean;
@@ -53,6 +63,11 @@ function swatchFill(option: NeonColor): string {
 export function Toolbar({
   brush,
   onBrushChange,
+  effectId,
+  onEffectChange,
+  replaySpeed,
+  onReplaySpeedChange,
+  onTogglePlay,
   state,
   busy,
   dimmed,
@@ -93,6 +108,7 @@ export function Toolbar({
       data-dimmed={dimmed || undefined}
       style={{ "--accent": accent } as React.CSSProperties}
     >
+      <span className="tool-group">
       <Popover
         label={`Neon style: ${style.name}`}
         accent={accent}
@@ -146,9 +162,6 @@ export function Toolbar({
                 style={{
                   background: swatchFill(ink),
                   boxShadow: `0 0 14px 1px ${glow}`,
-                  // A gradient ink gets a ring so it reads as two stops, not a blur.
-                  outline: isGradient(ink) ? "1px solid rgba(255,255,255,0.28)" : undefined,
-                  outlineOffset: "-1px",
                 }}
               />
             );
@@ -181,8 +194,56 @@ export function Toolbar({
         </div>
       </Popover>
 
+      <Popover
+        label={`Animation: ${findEffect(effectId).name}`}
+        accent={accent}
+        trigger={<SparkIcon className="h-5 w-5" />}
+      >
+        <div className="w-60">
+          <RadioGroup
+            label="Animation"
+            options={EFFECTS.map((option) => ({ id: option.id, label: option.name }))}
+            value={effectId}
+            onChange={(id) => onEffectChange(id as EffectId)}
+            className="grid grid-cols-3 gap-1"
+            optionClassName="fx"
+          >
+            {(option) => {
+              const effect = findEffect(option.id);
+              return (
+                <>
+                  <span className="fx-name">{effect.name}</span>
+                  <span className="micro">{effect.hint}</span>
+                </>
+              );
+            }}
+          </RadioGroup>
+
+          <div className="fx-speed">
+            <span className="micro">Replay</span>
+            <RadioGroup
+              label="Replay speed"
+              options={REPLAY_SPEEDS.map((value) => ({
+                id: String(value),
+                label: `${value} times speed`,
+              }))}
+              value={String(replaySpeed)}
+              onChange={(id) => onReplaySpeedChange(Number(id))}
+              className="flex gap-1"
+              optionClassName="speed"
+              titleOnly
+            >
+              {(option) => <span className="micro">{option.id}x</span>}
+            </RadioGroup>
+          </div>
+        </div>
+      </Popover>
+
+      </span>
+
       <span className="divider" aria-hidden />
 
+      <span className="tool-group">
       <button
         type="button"
         className="tool-btn"
@@ -215,7 +276,19 @@ export function Toolbar({
         <ClearIcon className="h-5 w-5" />
       </button>
 
-      <span className="divider" aria-hidden />
+      <span className="divider tight" aria-hidden />
+
+      <button
+        type="button"
+        className="tool-btn"
+        onClick={onTogglePlay}
+        disabled={state.isEmpty}
+        aria-label={state.replaying ? "Stop replay" : "Replay the drawing"}
+        title={state.replaying ? "Stop" : "Replay"}
+        data-active={state.replaying || undefined}
+      >
+        {state.replaying ? <StopIcon className="h-5 w-5" /> : <PlayIcon className="h-5 w-5" />}
+      </button>
 
       <button
         type="button"
@@ -237,6 +310,7 @@ export function Toolbar({
       >
         <ShareIcon className="h-5 w-5" />
       </button>
+      </span>
     </div>
   );
 }

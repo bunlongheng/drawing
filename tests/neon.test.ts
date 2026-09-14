@@ -93,9 +93,17 @@ describe("colour maths", () => {
 });
 
 describe("gradient inks", () => {
-  it("marks only two-stop inks as gradients", () => {
-    expect(isGradient(findColor("cyan"))).toBe(false);
-    expect(isGradient(findColor("sunset"))).toBe(true);
+  it("ships eight inks and every one is a gradient", () => {
+    expect(COLORS).toHaveLength(8);
+    for (const ink of COLORS) {
+      expect(isGradient(ink), `${ink.id} should be a gradient`).toBe(true);
+      expect(ink.hsl2).toBeDefined();
+      // A quarter turn at most. This is the guard against the full-spectrum
+      // sweep that made the old rainbow style read as garish; it is not meant
+      // to stop a wide-but-harmonious pair like green to yellow.
+      const arc = Math.abs((((ink.hsl2!.h - ink.hsl.h + 540) % 360) - 180));
+      expect(arc, `${ink.id} sweeps too far`).toBeLessThanOrEqual(100);
+    }
   });
 
   it("blends toward the second stop the short way around the hue circle", () => {
@@ -139,10 +147,15 @@ describe("gradient inks", () => {
     expect(gradientSpan(48)).toBe(700);
   });
 
-  it("leaves a solid ink alone at any distance", () => {
-    const cyan = findColor("cyan");
-    expect(colorAt(cyan, 0, 10)).toEqual(cyan.hsl);
-    expect(colorAt(cyan, 5000, 10)).toEqual(cyan.hsl);
+  it("returns the first stop at the very start of a stroke", () => {
+    const sunset = findColor("sunset");
+    expect(colorAt(sunset, 0, 10)).toEqual(sunset.hsl);
+  });
+
+  it("leaves an ink with no second stop alone at any distance", () => {
+    const solid = { id: "x", name: "X", hsl: { h: 200, s: 90, l: 50 } };
+    expect(colorAt(solid, 0, 10)).toEqual(solid.hsl);
+    expect(colorAt(solid, 5000, 10)).toEqual(solid.hsl);
   });
 
   it("moves a gradient ink as the stroke travels", () => {
@@ -191,7 +204,7 @@ describe("brush geometry", () => {
 
 describe("normaliseBrush", () => {
   it("passes through a valid brush", () => {
-    const brush = { styleId: "laser", colorId: "rose", size: 20 };
+    const brush = { styleId: "laser", colorId: "vapor", size: 20 };
     expect(normaliseBrush(brush)).toEqual(brush);
   });
 

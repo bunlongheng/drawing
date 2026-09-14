@@ -60,6 +60,32 @@ export function ShareIcon({ className }: IconProps) {
   );
 }
 
+export function PlayIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M7.5 4.5 15 10l-7.5 5.5z" />
+    </svg>
+  );
+}
+
+export function StopIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <rect x="5.5" y="5.5" width="9" height="9" rx="1.5" />
+    </svg>
+  );
+}
+
+export function SparkIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M10 3.2v3M10 13.8v3M3.2 10h3M13.8 10h3" />
+      <path d="M6.8 6.8 8 8M12 12l1.2 1.2M13.2 6.8 12 8M8 12l-1.2 1.2" />
+      <circle cx="10" cy="10" r="1.8" />
+    </svg>
+  );
+}
+
 export function SizeIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>

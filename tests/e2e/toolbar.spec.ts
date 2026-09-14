@@ -24,7 +24,7 @@ test("a gradient ink can be picked and is remembered", async ({ page }) => {
 
 test("colour and size selections persist across a reload", async ({ page }) => {
   await page.getByRole("button", { name: /Ink colour/ }).click();
-  await page.getByRole("radio", { name: "Amber" }).click();
+  await page.getByRole("radio", { name: "Lagoon" }).click();
   await page.keyboard.press("Escape");
 
   await page.getByRole("button", { name: /Brush size/ }).click();
@@ -32,7 +32,7 @@ test("colour and size selections persist across a reload", async ({ page }) => {
   await page.keyboard.press("Escape");
 
   await page.reload();
-  await expect(page.getByRole("button", { name: "Ink colour: Amber" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Ink colour: Lagoon" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Brush size: 28" })).toBeVisible();
 });
 
@@ -43,6 +43,32 @@ test("a corrupted stored brush falls back to the defaults", async ({ page }) => 
   await page.reload();
   await expect(page.getByRole("button", { name: "Neon style: Classic" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Brush size: 48" })).toBeVisible();
+});
+
+test("an animation can be chosen and is remembered", async ({ page }) => {
+  await page.getByRole("button", { name: /Animation/ }).click();
+  // The panel holds two groups: the effects and the replay speeds.
+  await expect(
+    page.getByRole("radiogroup", { name: "Animation" }).getByRole("radio"),
+  ).toHaveCount(6);
+  await page.getByRole("radio", { name: "Sparkle" }).click();
+  await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
+});
+
+test("replay speed is remembered", async ({ page }) => {
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await page.getByRole("radio", { name: "1.5 times speed" }).click();
+  await page.keyboard.press("Escape");
+
+  await page.reload();
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await expect(page.getByRole("radio", { name: "1.5 times speed" })).toHaveAttribute(
+    "aria-checked",
+    "true",
+  );
 });
 
 test("panels close on Escape and on an outside click", async ({ page }) => {

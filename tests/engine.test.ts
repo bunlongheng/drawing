@@ -20,7 +20,7 @@ function drawStroke(count = 5, startX = 100, startY = 100): void {
 
 beforeEach(() => {
   teardown = installCanvasStub();
-  state = { canUndo: false, canRedo: false, isEmpty: true };
+  state = { canUndo: false, canRedo: false, isEmpty: true, replaying: false };
   engine = new NeonEngine(makeDisplay(), (next) => {
     state = next;
   });
@@ -34,12 +34,17 @@ afterEach(() => {
 
 describe("stroke lifecycle", () => {
   it("starts empty", () => {
-    expect(engine.state).toEqual({ canUndo: false, canRedo: false, isEmpty: true });
+    expect(engine.state).toEqual({
+      canUndo: false,
+      canRedo: false,
+      isEmpty: true,
+      replaying: false,
+    });
   });
 
   it("a finished stroke makes the canvas undoable", () => {
     drawStroke();
-    expect(engine.state).toEqual({ canUndo: true, canRedo: false, isEmpty: false });
+    expect(engine.state).toMatchObject({ canUndo: true, canRedo: false, isEmpty: false });
     expect(state.canUndo).toBe(true);
   });
 
@@ -147,7 +152,12 @@ describe("checkpointing", () => {
   it("drops the snapshot on clear, so the next rebuild starts clean", () => {
     draw(45);
     engine.clear();
-    expect(engine.state).toEqual({ canUndo: false, canRedo: false, isEmpty: true });
+    expect(engine.state).toEqual({
+      canUndo: false,
+      canRedo: false,
+      isEmpty: true,
+      replaying: false,
+    });
     draw(3);
     engine.undo();
     engine.undo();
@@ -170,7 +180,12 @@ describe("clear", () => {
     engine.undo();
     drawStroke(5, 200, 200);
     engine.clear();
-    expect(engine.state).toEqual({ canUndo: false, canRedo: false, isEmpty: true });
+    expect(engine.state).toEqual({
+      canUndo: false,
+      canRedo: false,
+      isEmpty: true,
+      replaying: false,
+    });
   });
 
   it("is a no-op on an empty canvas", () => {

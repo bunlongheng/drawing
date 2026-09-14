@@ -3,11 +3,44 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeonEngine, type Brush, type EngineState } from "@/lib/engine";
 import { downloadBlob, shareBlob } from "@/lib/export";
+import {
+  DEFAULT_EFFECT_ID,
+  type EffectId,
+  findEffect,
+} from "@/lib/effects";
 import { DEFAULT_BRUSH, normaliseBrush } from "@/lib/neon";
-import { Toolbar } from "./Toolbar";
+import { REPLAY_SPEEDS, Toolbar } from "./Toolbar";
 
 const STORAGE_KEY = "drawing.brush";
+const EFFECT_KEY = "drawing.effect";
+const SPEED_KEY = "drawing.speed";
 const TOAST_MS = 2400;
+
+/** Animation is motion; honour the system setting and stay still. */
+function prefersStill(): boolean {
+  return (
+    typeof window !== "undefined" &&
+    window.matchMedia?.("(prefers-reduced-motion: reduce)").matches === true
+  );
+}
+
+function readStoredEffect(): EffectId {
+  if (prefersStill()) return "off";
+  try {
+    return findEffect(window.localStorage.getItem(EFFECT_KEY) ?? DEFAULT_EFFECT_ID).id;
+  } catch {
+    return DEFAULT_EFFECT_ID;
+  }
+}
+
+function readStoredSpeed(): number {
+  try {
+    const stored = Number(window.localStorage.getItem(SPEED_KEY));
+    return REPLAY_SPEEDS.includes(stored as (typeof REPLAY_SPEEDS)[number]) ? stored : 1;
+  } catch {
+    return 1;
+  }
+}
 
 function readStoredBrush(): Brush {
   try {
@@ -29,10 +62,13 @@ export function NeonCanvas() {
   // Rendered client-side only (see NeonCanvasClient), so stored preferences can
   // seed the very first render without a hydration mismatch.
   const [brush, setBrush] = useState<Brush>(readStoredBrush);
+  const [effectId, setEffectId] = useState<EffectId>(readStoredEffect);
+  const [replaySpeed, setReplaySpeed] = useState<number>(readStoredSpeed);
   const [state, setState] = useState<EngineState>({
     canUndo: false,
     canRedo: false,
     isEmpty: true,
+    replaying: false,
   });
   const [drawing, setDrawing] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -41,10 +77,12 @@ export function NeonCanvas() {
   useEffect(() => {
     try {
       window.localStorage.setItem(STORAGE_KEY, JSON.stringify(brush));
+      window.localStorage.setItem(EFFECT_KEY, effectId);
+      window.localStorage.setItem(SPEED_KEY, String(replaySpeed));
     } catch {
       // Private browsing or a full quota - preferences just do not persist.
     }
-  }, [brush]);
+  }, [brush, effectId, replaySpeed]);
 
   useEffect(() => {
     if (!toast) return;
@@ -72,6 +110,8 @@ export function NeonCanvas() {
       });
     };
 
+    engine.setEffect(effectId);
+
     const observer = new ResizeObserver(fit);
     observer.observe(canvas);
     fit();
@@ -82,7 +122,13 @@ export function NeonCanvas() {
       engine.destroy();
       engineRef.current = null;
     };
+    // The effect is pushed on mount and kept in step by the effect below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    engineRef.current?.setEffect(effectId);
+  }, [effectId]);
 
   const withEngine = useCallback(
     async (action: (engine: NeonEngine) => void | Promise<void>) => {
@@ -91,6 +137,13 @@ export function NeonCanvas() {
     },
     [],
   );
+
+  const togglePlay = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine) return;
+    if (engine.state.replaying) engine.stopReplay();
+    else engine.startReplay(replaySpeed);
+  }, [replaySpeed]);
 
   const exportCanvas = useCallback(
     async (mode: "download" | "share") => {
@@ -159,6 +212,8 @@ export function NeonCanvas() {
     const engine = engineRef.current;
     if (!canvas || !engine) return;
 
+    if (engine.state.replaying) engine.stopReplay();
+
     activePointer.current = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
     setDrawing(true);
@@ -223,6 +278,11 @@ export function NeonCanvas() {
       <Toolbar
         brush={brush}
         onBrushChange={(patch) => setBrush((current) => ({ ...current, ...patch }))}
+        effectId={effectId}
+        onEffectChange={setEffectId}
+        replaySpeed={replaySpeed}
+        onReplaySpeedChange={setReplaySpeed}
+        onTogglePlay={togglePlay}
         state={state}
         busy={busy}
         dimmed={drawing}
