@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { NeonEngine, type Brush, type EngineState } from "@/lib/engine";
-import { downloadBlob, shareBlob } from "@/lib/export";
+import { clipExtension, downloadBlob, shareBlob } from "@/lib/export";
 import {
   DEFAULT_EFFECT_ID,
   type EffectId,
@@ -73,6 +73,8 @@ export function NeonCanvas() {
   const [drawing, setDrawing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [toast, setToast] = useState<{ text: string; tone?: "error" } | null>(null);
+  // Decided once: Safari and Chrome can encode, some embedded browsers cannot.
+  const [canRecord] = useState(() => NeonEngine.clipMimeType() !== null);
 
   useEffect(() => {
     try {
@@ -145,6 +147,32 @@ export function NeonCanvas() {
     else engine.startReplay(replaySpeed);
   }, [replaySpeed]);
 
+  // Changing the speed mid-playback takes effect immediately.
+  useEffect(() => {
+    engineRef.current?.setReplaySpeed(replaySpeed);
+  }, [replaySpeed]);
+
+  const exportClip = useCallback(async () => {
+    const engine = engineRef.current;
+    if (!engine || busy) return;
+    setBusy(true);
+    setToast({ text: "Recording 0%" });
+    try {
+      const { blob, type } = await engine.recordReplay(replaySpeed, (fraction) =>
+        setToast({ text: `Recording ${Math.round(fraction * 100)}%` }),
+      );
+      downloadBlob(blob, clipExtension(type));
+      setToast({ text: `Saved ${clipExtension(type).toUpperCase()}` });
+    } catch (error) {
+      setToast({
+        text: error instanceof Error ? error.message : "Could not record the replay",
+        tone: "error",
+      });
+    } finally {
+      setBusy(false);
+    }
+  }, [busy, replaySpeed]);
+
   const exportCanvas = useCallback(
     async (mode: "download" | "share") => {
       const engine = engineRef.current;
@@ -212,7 +240,8 @@ export function NeonCanvas() {
     const engine = engineRef.current;
     if (!canvas || !engine) return;
 
-    if (engine.state.replaying) engine.stopReplay();
+    // Play mode owns the canvas; a stray tap must not drop dots on the drawing.
+    if (engine.state.replaying) return;
 
     activePointer.current = event.pointerId;
     canvas.setPointerCapture(event.pointerId);
@@ -283,6 +312,8 @@ export function NeonCanvas() {
         replaySpeed={replaySpeed}
         onReplaySpeedChange={setReplaySpeed}
         onTogglePlay={togglePlay}
+        onExportClip={() => void exportClip()}
+        canRecord={canRecord}
         state={state}
         busy={busy}
         dimmed={drawing}

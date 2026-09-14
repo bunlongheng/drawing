@@ -90,6 +90,28 @@ const REPLAY_RATE = 460;
 /** At most this many points back the artwork for particles - plenty, and cheap. */
 const MAX_INDEX = 900;
 
+/**
+ * Longest edge of a recorded clip. The canvas can be 2700px wide on an iPad,
+ * and encoding that is a large file for no visible gain once it is played back
+ * on a phone. 1920 keeps it sharp and keeps the file small.
+ */
+const CLIP_MAX_EDGE = 1920;
+
+/** Frames per second a clip is captured at. */
+const CLIP_FPS = 30;
+
+/** Held at the end of a clip so the finished drawing is actually seen. */
+const CLIP_TAIL_MS = 900;
+
+/** Preferred first: MP4 plays everywhere, WebM is the fallback. */
+const CLIP_TYPES = [
+  "video/mp4;codecs=avc1.42E01E",
+  "video/mp4",
+  "video/webm;codecs=vp9",
+  "video/webm;codecs=vp8",
+  "video/webm",
+];
+
 /** Retina is plenty; beyond it the bloom passes cost more than they show. */
 const MAX_DPR = 2.5;
 
@@ -167,6 +189,10 @@ export class NeonEngine {
     last: number;
     speed: number;
   } | null = null;
+  /** Resolved when the running replay reaches the end. */
+  private onReplayDone: (() => void) | null = null;
+  /** Mirror of the display, sized for encoding, live only while recording. */
+  private clip: { canvas: HTMLCanvasElement; ctx: CanvasRenderingContext2D } | null = null;
   /** Device-px region the next frame must recomposite. */
   private damage: Rect | null = null;
   private fullRepaint = true;
@@ -348,6 +374,22 @@ export class NeonEngine {
     this.emit();
   }
 
+  /** Change the pace of a running replay, or set it for the next one. */
+  setReplaySpeed(speed: number): void {
+    if (this.replayState) this.replayState.speed = speed;
+  }
+
+  /** How far through the replay we are, 0 to 1. */
+  get replayProgress(): number {
+    const replay = this.replayState;
+    if (!replay) return 1;
+    const total = this.strokes.reduce((n, stroke) => n + stroke.samples.length, 0);
+    if (total === 0) return 1;
+    let done = replay.sample;
+    for (let i = 0; i < replay.stroke; i += 1) done += this.strokes[i].samples.length;
+    return Math.min(1, done / total);
+  }
+
   /** Stop a replay and put the finished drawing back on screen. */
   stopReplay(): void {
     if (!this.replayState) return;
@@ -357,6 +399,72 @@ export class NeonEngine {
     this.requestPaint();
     this.syncLoop();
     this.emit();
+  }
+
+  /** The clip format this browser can actually encode, if any. */
+  static clipMimeType(): string | null {
+    if (typeof MediaRecorder === "undefined") return null;
+    return CLIP_TYPES.find((type) => MediaRecorder.isTypeSupported(type)) ?? null;
+  }
+
+  /**
+   * Record a replay to a video file.
+   *
+   * Frames are mirrored into a smaller canvas and encoded from there: the
+   * display can be 2700px wide, which makes a large file for no visible gain.
+   */
+  async recordReplay(
+    speed: number,
+    onProgress?: (fraction: number) => void,
+  ): Promise<{ blob: Blob; type: string }> {
+    const type = NeonEngine.clipMimeType();
+    if (!type) throw new Error("This browser cannot record video");
+    if (this.strokes.length === 0) throw new Error("Nothing to record");
+
+    const scale = Math.min(1, CLIP_MAX_EDGE / Math.max(this.display.width, this.display.height));
+    const canvas = document.createElement("canvas");
+    // Even dimensions: H.264 will not encode an odd frame size.
+    canvas.width = Math.max(2, Math.round((this.display.width * scale) / 2) * 2);
+    canvas.height = Math.max(2, Math.round((this.display.height * scale) / 2) * 2);
+    this.clip = { canvas, ctx: context(canvas) };
+
+    const stream = canvas.captureStream(CLIP_FPS);
+    const recorder = new MediaRecorder(stream, { mimeType: type, videoBitsPerSecond: 6_000_000 });
+    const chunks: BlobPart[] = [];
+    recorder.ondataavailable = (event) => {
+      if (event.data.size > 0) chunks.push(event.data);
+    };
+
+    const finished = new Promise<void>((resolve) => {
+      recorder.onstop = () => resolve();
+    });
+
+    let ticker = 0;
+    try {
+      recorder.start();
+      // Paint one frame immediately so the clip opens on a black canvas.
+      this.mirrorToClip();
+
+      await new Promise<void>((resolve) => {
+        this.onReplayDone = resolve;
+        if (onProgress) {
+          ticker = window.setInterval(() => onProgress(this.replayProgress), 120);
+        }
+        this.startReplay(speed);
+      });
+
+      // Hold on the finished drawing rather than cutting on the last stroke.
+      await new Promise((resolve) => setTimeout(resolve, CLIP_TAIL_MS));
+    } finally {
+      if (ticker) clearInterval(ticker);
+      if (recorder.state !== "inactive") recorder.stop();
+      await finished;
+      for (const track of stream.getTracks()) track.stop();
+      this.clip = null;
+    }
+
+    onProgress?.(1);
+    return { blob: new Blob(chunks, { type }), type };
   }
 
   /** PNG of exactly what is on screen, at device resolution. */
@@ -431,6 +539,14 @@ export class NeonEngine {
     if (hasParticles(this.effectId)) this.paintParticles(ctx, seconds);
     ctx.globalCompositeOperation = "source-over";
     this.dirty = false;
+    this.mirrorToClip();
+  }
+
+  /** Copy the finished frame into the (smaller) canvas being encoded. */
+  private mirrorToClip(): void {
+    const clip = this.clip;
+    if (!clip) return;
+    clip.ctx.drawImage(this.display, 0, 0, clip.canvas.width, clip.canvas.height);
   }
 
   /** A thinned-out copy of the artwork, for placing particles on it. */
@@ -567,8 +683,11 @@ export class NeonEngine {
     if (replay.stroke >= this.strokes.length) {
       this.replayState = null;
       this.indexStale = true;
+      const done = this.onReplayDone;
+      this.onReplayDone = null;
       this.syncLoop();
       this.emit();
+      done?.();
       return;
     }
     // Bloom the stroke still in progress so it grows on screen as it is drawn.

@@ -271,15 +271,16 @@ export function distance(ax: number, ay: number, bx: number, by: number): number
   return Math.hypot(bx - ax, by - ay);
 }
 
-/** `neon-2026-09-14-1430.png` - stable, sortable, filesystem safe. */
-export function exportFilename(now: Date = new Date()): string {
+/** `neon-2026-09-14-143059.png` - stable, sortable, filesystem safe. */
+export function exportFilename(now: Date = new Date(), extension = "png"): string {
   const pad = (n: number) => String(n).padStart(2, "0");
   const stamp = [
     now.getFullYear(),
     pad(now.getMonth() + 1),
     pad(now.getDate()),
   ].join("-");
-  return `neon-${stamp}-${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.png`;
+  const clock = `${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}`;
+  return `neon-${stamp}-${clock}.${extension}`;
 }
 
 export const DEFAULT_BRUSH: Brush = {

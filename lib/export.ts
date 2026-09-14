@@ -16,10 +16,15 @@ function download(blob: Blob, filename: string): void {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
-export function downloadBlob(blob: Blob): string {
-  const filename = exportFilename();
+export function downloadBlob(blob: Blob, extension = "png"): string {
+  const filename = exportFilename(new Date(), extension);
   download(blob, filename);
   return filename;
+}
+
+/** The file extension for a recorded clip, from its MIME type. */
+export function clipExtension(type: string): string {
+  return type.includes("mp4") ? "mp4" : "webm";
 }
 
 /**

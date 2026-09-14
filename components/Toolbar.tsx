@@ -29,7 +29,7 @@ import {
   UndoIcon,
 } from "./icons";
 
-export const REPLAY_SPEEDS = [0.5, 1, 1.5, 2] as const;
+export const REPLAY_SPEEDS = [0.1, 0.25, 0.5, 1, 1.5, 2, 3] as const;
 
 type ToolbarProps = {
   brush: Brush;
@@ -39,6 +39,8 @@ type ToolbarProps = {
   replaySpeed: number;
   onReplaySpeedChange: (speed: number) => void;
   onTogglePlay: () => void;
+  onExportClip: () => void;
+  canRecord: boolean;
   state: EngineState;
   busy: boolean;
   dimmed: boolean;
@@ -68,6 +70,8 @@ export function Toolbar({
   replaySpeed,
   onReplaySpeedChange,
   onTogglePlay,
+  onExportClip,
+  canRecord,
   state,
   busy,
   dimmed,
@@ -199,13 +203,13 @@ export function Toolbar({
         accent={accent}
         trigger={<SparkIcon className="h-5 w-5" />}
       >
-        <div className="w-60">
+        <div className="fx-panel">
           <RadioGroup
             label="Animation"
             options={EFFECTS.map((option) => ({ id: option.id, label: option.name }))}
             value={effectId}
             onChange={(id) => onEffectChange(id as EffectId)}
-            className="grid grid-cols-3 gap-1"
+            className="effects"
             optionClassName="fx"
           >
             {(option) => {
@@ -220,7 +224,7 @@ export function Toolbar({
           </RadioGroup>
 
           <div className="fx-speed">
-            <span className="micro">Replay</span>
+            <span className="micro">Replay speed</span>
             <RadioGroup
               label="Replay speed"
               options={REPLAY_SPEEDS.map((value) => ({
@@ -229,12 +233,27 @@ export function Toolbar({
               }))}
               value={String(replaySpeed)}
               onChange={(id) => onReplaySpeedChange(Number(id))}
-              className="flex gap-1"
+              className="speeds"
               optionClassName="speed"
               titleOnly
             >
               {(option) => <span className="micro">{option.id}x</span>}
             </RadioGroup>
+
+            <button
+              type="button"
+              className="fx-export"
+              onClick={onExportClip}
+              disabled={state.isEmpty || !canRecord || busy}
+              title={
+                canRecord
+                  ? "Record the replay as a video"
+                  : "This browser cannot record video"
+              }
+            >
+              <DownloadIcon className="h-4 w-4" />
+              <span className="micro">Export video</span>
+            </button>
           </div>
         </div>
       </Popover>

@@ -34,7 +34,8 @@ A minimal neon sketchpad for Apple Pencil. Pure black canvas, pressure-sensitive
 - **4 neon styles,** chosen to differ in shape rather than in degree: **Classic** (white-hot core in a saturated halo), **Halo** (a fat soft light with no hard centre), **Laser** (a razor line with a fierce tight glow) and **Wire** (a flat coloured line, barely lit).
 - **8 gradient inks.** Every ink is two stops the stroke eases between as it travels, so a line shifts colour along its length: Sunset, Ember, Toxic, Mint, Lagoon, Ultraviolet, Vapor and Frost.
 - **6 ambient animations.** Off, Breathe (the drawing swells and dims), Flicker (an old sign), Sparkle (star glints), Firefly (motes drifting near the lines) and Flow (a bright head running the strokes like current through a tube).
-- **Replay.** Press play and the drawing redraws itself stroke by stroke at 0.5x, 1x, 1.5x or 2x - so someone can watch how it was made.
+- **Replay.** Press play and the drawing redraws itself stroke by stroke, anywhere from 0.1x to 3x, so someone can watch how it was made. The canvas locks while it plays, and the speed can be changed mid-playback.
+- **Export the replay as video.** Record the playback to MP4 (H.264) where the browser supports it, WebM otherwise - captured at up to 1920px and 30fps, so the file stays small without looking soft.
 - **A 2-48 px brush,** remembered between sessions along with the style and ink, and validated on the way back in.
 - **Always black.** The canvas is pure `#000000`, so the PNG you export is exactly what you drew.
 - **Download or share.** PNG at device resolution, through the native share sheet on iPadOS and iOS and a download everywhere else.
@@ -118,6 +119,8 @@ That last point is what makes it usable: a long sweeping stroke went from **107 
 | Colour variation | Two-stop gradient inks | A rainbow hue-rotate style | Two neighbouring hues read as one ink shifting; a full spectrum sweep read as garish | A gradient needs a travel distance to show |
 | Animation state | Pure functions of time | Particle objects updated per frame | Nothing drifts out of sync after a pause, and the maths is testable without a canvas | Positions are hashed, not simulated |
 | Replay timing | Constant pace over samples | The original timestamps | A steady pace is easier to learn from, and no per-sample clock has to be stored | It does not reproduce your hesitations |
+| Clip format | MP4 or WebM via MediaRecorder | An animated GIF | A GIF of a full-screen drawing is many times larger and caps at 256 colours, which a neon gradient cannot survive | No inline autoplay in some old chat clients |
+| Clip resolution | Capped at 1920px, 30fps | The canvas as-is | An iPad canvas is 2700px wide, which encodes to a big file for no visible gain on playback | Not a pixel-exact capture |
 | Gradient progress | Triangle wave over distance | A ramp across the stroke | The total length is unknown while drawing, and easing back makes a long stroke a ribbon | A very long stroke repeats the sweep |
 
 ## Tech stack
@@ -150,8 +153,8 @@ To draw on an iPad on the same network, run `npm run dev -- -H 0.0.0.0` and brow
 | Change style, ink or size | The three controls on the left of the toolbar |
 | Undo / redo | Toolbar, or `Cmd+Z` and `Cmd+Shift+Z` (`Ctrl` on Windows and Linux) |
 | Clear | Tap the bin, then tap again to confirm |
-| Animate or set replay speed | The spark control in the toolbar |
-| Replay the drawing | The play button; drawing again stops it |
+| Animate, set replay speed, export video | The spark control in the toolbar |
+| Replay the drawing | The play button; the canvas locks until you stop it |
 | Save a PNG | Toolbar, or `Cmd+S` |
 | Share | The share button - native sheet where available, otherwise a download |
 
@@ -169,7 +172,7 @@ The toolbar fades while you draw and comes back when you lift off. Arrow keys mo
 npm run lint       # ESLint
 npm run typecheck  # tsc --noEmit
 npm run test       # Vitest - 67 tests over the pure logic and the engine
-npm run test:e2e   # Playwright - 30 cases on Chromium and WebKit/iPad
+npm run test:e2e   # Playwright - 33 cases on Chromium and WebKit/iPad
 npm run test:all   # both suites
 ```
 

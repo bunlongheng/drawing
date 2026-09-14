@@ -17,6 +17,8 @@
   --ink: rgba(255, 255, 255, 0.72);
   --ink-dim: rgba(255, 255, 255, 0.62);
   --btn: 2.625rem;
+  /* Full height of the toolbar. Two rows on a phone, one from 600px up. */
+  --bar-h: calc(var(--btn) * 2 + 0.75rem);
   --accent: #22d3ee;
   color-scheme: dark;
 }
@@ -24,6 +26,12 @@
 @media (min-width: 440px) {
   :root {
     --btn: 2.75rem;
+  }
+}
+
+@media (min-width: 600px) {
+  :root {
+    --bar-h: calc(var(--btn) + 0.625rem);
   }
 }
 
@@ -173,10 +181,11 @@ body {
 .panel {
   position: fixed;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + var(--btn) + 1.4rem);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + var(--bar-h) + 0.75rem);
   transform: translateX(-50%);
-  max-width: calc(
-    100vw - 1.5rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)
+  max-width: min(
+    21rem,
+    calc(100vw - 1.5rem - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px))
   );
   padding: 0.5rem;
   border-radius: 1rem;
@@ -207,6 +216,23 @@ body {
   border-color: var(--hair-strong);
 }
 
+.fx-panel {
+  width: min(19rem, calc(100vw - 2.5rem));
+}
+
+/* Two columns on a phone, three once there is room. */
+.effects {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.1875rem;
+}
+
+@media (min-width: 400px) {
+  .effects {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 /* The animation picker: name over a one-line hint. */
 .fx {
   display: grid;
@@ -232,17 +258,56 @@ body {
   color: var(--ink);
 }
 
+/* The hint is a sentence, not a label, so let it wrap inside its cell. */
+.fx .micro {
+  white-space: normal;
+  line-height: 1.35;
+  text-align: center;
+}
+
 .fx-speed {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
+  display: grid;
+  gap: 0.4375rem;
   margin-top: 0.5rem;
   padding-top: 0.5rem;
   border-top: 1px solid var(--hair);
+  justify-items: start;
+}
+
+/* Seven speeds: four on the first row, three on the second. */
+.speeds {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.1875rem;
+  width: 100%;
+}
+
+.fx-export {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4375rem;
+  width: 100%;
+  padding: 0.5rem;
+  border-radius: 0.625rem;
+  border: 1px solid var(--hair);
+  color: var(--ink);
+  transition: background 160ms ease, border-color 160ms ease, opacity 160ms ease;
+}
+
+.fx-export:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.07);
+  border-color: var(--hair-strong);
+}
+
+.fx-export:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 
 .speed {
-  padding: 0.3125rem 0.5rem;
+  padding: 0.3125rem 0.25rem;
+  text-align: center;
   border-radius: 0.5rem;
   border: 1px solid transparent;
   transition: background 160ms ease, border-color 160ms ease;
@@ -327,7 +392,7 @@ body {
 .toast {
   position: absolute;
   left: 50%;
-  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + var(--btn) + 1.4rem);
+  bottom: calc(env(safe-area-inset-bottom, 0px) + 1rem + var(--bar-h) + 0.75rem);
   transform: translateX(-50%);
   margin: 0;
   padding: 0.375rem 0.75rem;

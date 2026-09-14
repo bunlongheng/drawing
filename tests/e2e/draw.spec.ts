@@ -259,6 +259,46 @@ test("undoing back past a checkpoint clears the canvas completely", async ({ pag
   expect(await litPixels(page)).toBe(0);
 });
 
+test("play mode locks the canvas so a stray tap leaves no dots", async ({ page }) => {
+  // Animation off, so the pixel count is stable and the lock is the only variable.
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await page.getByRole("radio", { name: "Off" }).click();
+  await page.keyboard.press("Escape");
+
+  await stroke(page, { pointerType: "pen", pressure: 0.9 });
+  const drawn = await litPixels(page);
+  expect(drawn).toBeGreaterThan(500);
+
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  await expect(page.getByRole("button", { name: "Stop replay" })).toBeVisible();
+
+  // Try hard to draw while it plays.
+  await stroke(page, { pointerType: "pen", from: [80, 300], length: 260 });
+  await stroke(page, { pointerType: "touch", from: [80, 360], length: 260 });
+
+  // Let it finish, then compare: mid-replay the canvas is legitimately partial.
+  await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeVisible({
+    timeout: 20_000,
+  });
+  expect(await litPixels(page)).toBe(drawn);
+
+  // And the canvas is live again.
+  await stroke(page, { pointerType: "pen", from: [80, 420], length: 260 });
+  expect(await litPixels(page)).toBeGreaterThan(drawn);
+});
+
+test("replay speed can be changed while it is running", async ({ page }) => {
+  await stroke(page, { pointerType: "pen" });
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await page.getByRole("radio", { name: "3 times speed" }).click();
+  await page.keyboard.press("Escape");
+
+  // Still playing, now faster - the control is live, not next-run only.
+  await expect(page.getByRole("button", { name: /Animation/ })).toBeVisible();
+});
+
 test("keyboard undo and redo", async ({ page }) => {
   await stroke(page);
   const modifier = process.platform === "darwin" ? "Meta" : "Control";

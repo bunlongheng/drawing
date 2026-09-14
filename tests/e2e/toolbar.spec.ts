@@ -58,6 +58,19 @@ test("an animation can be chosen and is remembered", async ({ page }) => {
   await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
 });
 
+test("offers the full range of replay speeds", async ({ page }) => {
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await expect(
+    page.getByRole("radiogroup", { name: "Replay speed" }).getByRole("radio"),
+  ).toHaveCount(7);
+  for (const speed of ["0.1", "0.25", "0.5", "1", "1.5", "2", "3"]) {
+    // Exact: "1 times speed" would otherwise also match "0.1 times speed".
+    await expect(
+      page.getByRole("radio", { name: `${speed} times speed`, exact: true }),
+    ).toBeVisible();
+  }
+});
+
 test("replay speed is remembered", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
   await page.getByRole("radio", { name: "1.5 times speed" }).click();
