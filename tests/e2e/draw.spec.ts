@@ -342,7 +342,11 @@ test("play mode swaps the drawing tools for the export actions", async ({ page }
   await page.getByRole("button", { name: "Replay the drawing" }).click();
   await expect(page.locator(".playbar")).toBeVisible();
   await expect(page.getByRole("slider", { name: "Replay speed" })).toBeVisible();
-  await expect(page.getByRole("button", { name: "Export video" })).toBeVisible();
+  // The clip button names itself for what the browser can do: a WebKit build
+  // without MediaRecorder says so instead of promising an export.
+  await expect(
+    page.getByRole("button", { name: /Export video|cannot record video/ }),
+  ).toBeVisible();
   await expect(page.getByRole("button", { name: "Download PNG" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Share" })).toBeVisible();
   // The drawing tools are gone while the canvas is locked.
