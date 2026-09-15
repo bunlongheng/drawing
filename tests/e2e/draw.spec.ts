@@ -55,22 +55,34 @@ async function stroke(
   );
 }
 
+/**
+ * Draw something and enter play mode, where the export actions live. The
+ * replay runs on entry; the exports sit under it the whole time.
+ */
+async function enterPlayMode(page: Page): Promise<void> {
+  await stroke(page);
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  await expect(page.getByRole("button", { name: "Leave play mode" })).toBeVisible();
+}
+
 test.beforeEach(async ({ page }) => {
   await page.goto("/");
   await expect(page.getByRole("img", { name: "Neon drawing canvas" })).toBeVisible();
 });
 
-test("starts on an empty black canvas with the export actions disabled", async ({ page }) => {
+test("starts on an empty black canvas with nothing to play or undo", async ({ page }) => {
   expect(await litPixels(page)).toBe(0);
-  await expect(page.getByRole("button", { name: "Download PNG" })).toBeDisabled();
-  await expect(page.getByRole("button", { name: "Share" })).toBeDisabled();
+  await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeDisabled();
   await expect(page.getByRole("button", { name: "Undo" })).toBeDisabled();
+  // Exporting belongs to play mode, so it is not on the drawing bar at all.
+  await expect(page.getByRole("button", { name: "Download PNG" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Share" })).toHaveCount(0);
 });
 
 test("a pen stroke paints neon and enables the actions", async ({ page }) => {
   await stroke(page, { pointerType: "pen", pressure: 0.9 });
   expect(await litPixels(page)).toBeGreaterThan(500);
-  await expect(page.getByRole("button", { name: "Download PNG" })).toBeEnabled();
+  await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeEnabled();
   await expect(page.getByRole("button", { name: "Undo" })).toBeEnabled();
 });
 
@@ -313,33 +325,79 @@ test("play mode locks the canvas so a stray tap leaves no dots", async ({ page }
   });
   expect(await litPixels(page)).toBe(drawn);
 
-  // And the canvas is live again.
+  // Play mode holds until it is left, and the canvas is locked all the while.
+  await stroke(page, { pointerType: "pen", from: [80, 420], length: 260 });
+  expect(await litPixels(page)).toBe(drawn);
+
+  await page.getByRole("button", { name: "Leave play mode" }).click();
   await stroke(page, { pointerType: "pen", from: [80, 420], length: 260 });
   expect(await litPixels(page)).toBeGreaterThan(drawn);
 });
 
-test("the speed control is on screen while it plays, and takes effect live", async ({
-  page,
-}) => {
-  // A slow speed keeps the replay running long enough to interact with.
-  await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("slider", { name: "Replay speed" }).fill("0");
-  await page.keyboard.press("Escape");
-
+test("play mode swaps the drawing tools for the export actions", async ({ page }) => {
   await stroke(page, { pointerType: "pen" });
   await expect(page.locator(".playbar")).toBeHidden();
+  await expect(page.getByRole("button", { name: /Brush size/ })).toBeVisible();
 
   await page.getByRole("button", { name: "Replay the drawing" }).click();
-  const playbar = page.locator(".playbar");
-  await expect(playbar).toBeVisible();
+  await expect(page.locator(".playbar")).toBeVisible();
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toBeVisible();
+  // The clip button names itself for what the browser can do: a WebKit build
+  // without MediaRecorder says so instead of promising an export.
+  await expect(
+    page.getByRole("button", { name: /Export video|cannot record video/ }),
+  ).toBeVisible();
+  await expect(page.getByRole("button", { name: "Download PNG" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share" })).toBeVisible();
+  // The drawing tools are gone while the canvas is locked.
+  await expect(page.getByRole("button", { name: /Brush size/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Undo" })).toHaveCount(0);
 
-  // Winding the playbar slider to the top ends the replay quickly, which is the
-  // observable proof that it applied to the run already in flight.
-  await playbar.getByRole("slider", { name: "Replay speed" }).fill("5");
+  await page.getByRole("button", { name: "Leave play mode" }).click();
+  await expect(page.locator(".playbar")).toBeHidden();
+  await expect(page.getByRole("button", { name: /Brush size/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Share" })).toHaveCount(0);
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveCount(0);
+});
+
+test("the speed slider snaps to each speed and takes effect live", async ({ page }) => {
+  await stroke(page, { pointerType: "pen" });
+  // The control belongs to play mode; drawing never shows it.
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  const slider = page.getByRole("slider", { name: "Replay speed" });
+  // Opens at 1x, the pace the drawing was made at.
+  await expect(slider).toHaveAttribute("aria-valuetext", "1 times speed");
+  await expect(slider).toHaveAttribute("min", "0");
+  await expect(slider).toHaveAttribute("max", "3");
+  await expect(slider).toHaveAttribute("step", "1");
+
+  for (const [index, speed] of ["0.1", "1", "2", "3"].entries()) {
+    await slider.fill(String(index));
+    await expect(slider).toHaveAttribute("aria-valuetext", `${speed} times speed`);
+  }
+
+  // Left at 3x, so the run in flight finishes quickly - the observable proof
+  // that moving the slider reached the replay already going.
   await expect(page.getByRole("button", { name: "Replay the drawing" })).toBeVisible({
     timeout: 15_000,
   });
-  await expect(playbar).toBeHidden();
+});
+
+test("the chosen speed is remembered", async ({ page }) => {
+  await stroke(page, { pointerType: "pen" });
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  await page.getByRole("slider", { name: "Replay speed" }).fill("0");
+
+  await page.reload();
+  await expect(page.getByRole("img", { name: "Neon drawing canvas" })).toBeVisible();
+  await stroke(page, { pointerType: "pen" });
+  await page.getByRole("button", { name: "Replay the drawing" }).click();
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveAttribute(
+    "aria-valuetext",
+    "0.1 times speed",
+  );
 });
 
 test("keyboard undo and redo", async ({ page }) => {
@@ -361,7 +419,7 @@ test("Cmd+S saves a PNG", async ({ page }) => {
 });
 
 test("download produces a PNG named for the moment it was saved", async ({ page }) => {
-  await stroke(page);
+  await enterPlayMode(page);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download PNG" }).click();
   expect((await download).suggestedFilename()).toMatch(/^neon-\d{4}-\d{2}-\d{2}-\d{6}\.png$/);
@@ -382,7 +440,7 @@ test("share hands the file to the native sheet when the platform offers one", as
       return Promise.resolve();
     };
   });
-  await stroke(page);
+  await enterPlayMode(page);
   await page.getByRole("button", { name: "Share" }).click();
   await expect(page.getByRole("status")).toHaveText("Shared");
 
@@ -399,7 +457,7 @@ test("a dismissed share sheet is not reported as shared", async ({ page }) => {
     nav.canShare = () => true;
     nav.share = () => Promise.reject(new DOMException("cancelled", "AbortError"));
   });
-  await stroke(page);
+  await enterPlayMode(page);
   await page.getByRole("button", { name: "Share" }).click();
   await expect(page.getByRole("button", { name: "Share" })).toBeEnabled();
   await expect(page.getByRole("status")).toHaveText("");
@@ -411,7 +469,7 @@ test("a failed share still gets the drawing to the user as a download", async ({
     nav.canShare = () => true;
     nav.share = () => Promise.reject(new DOMException("blocked", "NotAllowedError"));
   });
-  await stroke(page);
+  await enterPlayMode(page);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Share" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.png$/);
@@ -424,7 +482,7 @@ test("an export that cannot encode surfaces an error and stays usable", async ({
       callback(null);
     };
   });
-  await stroke(page);
+  await enterPlayMode(page);
   await page.getByRole("button", { name: "Download PNG" }).click();
   await expect(page.getByRole("status")).toHaveText("Export failed - please try again");
   await expect(page.getByRole("button", { name: "Download PNG" })).toBeEnabled();
@@ -434,7 +492,7 @@ test("share falls back to a download where the platform cannot share files", asy
   await page.evaluate(() => {
     (navigator as Navigator & { canShare?: unknown }).canShare = () => false;
   });
-  await stroke(page);
+  await enterPlayMode(page);
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Share" }).click();
   expect((await download).suggestedFilename()).toMatch(/\.png$/);

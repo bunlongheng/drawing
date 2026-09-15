@@ -14,13 +14,14 @@ import {
   inkColor,
 } from "@/lib/neon";
 import { EFFECTS, type EffectId, findEffect } from "@/lib/effects";
-import { SpeedSlider } from "./SpeedSlider";
 import { Popover } from "./Popover";
+import { SpeedSlider } from "./SpeedSlider";
 import { RadioGroup } from "./RadioGroup";
 import { StrokePreview } from "./StrokePreview";
 import {
   BreatheIcon,
   ClearIcon,
+  CloseIcon,
   DownloadIcon,
   FireflyIcon,
   FlickerIcon,
@@ -31,7 +32,7 @@ import {
   ShareIcon,
   SizeIcon,
   SparkIcon,
-  SpeedIcon,
+  StopIcon,
   UndoIcon,
   VideoIcon,
 } from "./icons";
@@ -41,9 +42,14 @@ type ToolbarProps = {
   onBrushChange: (patch: Partial<Brush>) => void;
   effectId: EffectId;
   onEffectChange: (id: EffectId) => void;
+  /** True while the drawing is being watched rather than drawn on. */
+  playMode: boolean;
+  onEnterPlay: () => void;
+  onExitPlay: () => void;
+  /** Start the replay again from the beginning, or stop the running one. */
+  onTogglePlay: () => void;
   replaySpeed: number;
   onReplaySpeedChange: (speed: number) => void;
-  onTogglePlay: () => void;
   onExportClip: () => void;
   canRecord: boolean;
   state: EngineState;
@@ -82,9 +88,12 @@ export function Toolbar({
   onBrushChange,
   effectId,
   onEffectChange,
+  playMode,
+  onEnterPlay,
+  onExitPlay,
+  onTogglePlay,
   replaySpeed,
   onReplaySpeedChange,
-  onTogglePlay,
   onExportClip,
   canRecord,
   state,
@@ -107,7 +116,7 @@ export function Toolbar({
   const accent = inkColor(color.hsl, 0);
 
   // Panels and toasts sit above the toolbar, which wraps to two rows on a
-  // phone. Measuring beats guessing at the row count from a breakpoint.
+  // phone and changes shape in play mode. Measuring beats guessing.
   useEffect(() => {
     const bar = barRef.current;
     if (!bar) return;
@@ -118,7 +127,7 @@ export function Toolbar({
     const observer = new ResizeObserver(publish);
     observer.observe(bar);
     return () => observer.disconnect();
-  }, []);
+  }, [playMode]);
 
   useEffect(() => {
     if (!clearArmed) return;
@@ -136,18 +145,88 @@ export function Toolbar({
     onClear();
   };
 
-  const speedPicker = <SpeedSlider value={replaySpeed} onChange={onReplaySpeedChange} />;
+  /*
+    Play mode is its own instrument: the canvas is locked, so the drawing
+    tools go away and the things you do with a finished piece - record it,
+    save it, send it - are here and nowhere else.
+  */
+  if (playMode) {
+    return (
+      <>
+        <div className="playbar" style={{ "--accent": accent } as React.CSSProperties}>
+          <span className="play-dot" data-live={state.replaying || undefined} aria-hidden />
+          <span className="micro play-label">{state.replaying ? "Playing" : "Play mode"}</span>
+          <SpeedSlider value={replaySpeed} onChange={onReplaySpeedChange} />
+        </div>
+
+        <div
+          ref={barRef}
+          className="toolbar"
+          style={{ "--accent": accent } as React.CSSProperties}
+        >
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={onTogglePlay}
+            aria-label={state.replaying ? "Stop replay" : "Replay the drawing"}
+            title={state.replaying ? "Stop" : "Replay"}
+            data-playing={state.replaying || undefined}
+          >
+            {state.replaying ? <StopIcon /> : <PlayIcon />}
+          </button>
+
+          <span className="divider" aria-hidden />
+
+          <span className="tool-group">
+            <button
+              type="button"
+              className="tool-btn"
+              onClick={onExportClip}
+              disabled={!canRecord || busy}
+              aria-label={canRecord ? "Export video" : "This browser cannot record video"}
+              title={canRecord ? "Export video" : "This browser cannot record video"}
+            >
+              <VideoIcon />
+            </button>
+            <button
+              type="button"
+              className="tool-btn"
+              onClick={onDownload}
+              disabled={busy}
+              aria-label="Download PNG"
+              title="Download"
+            >
+              <DownloadIcon />
+            </button>
+            <button
+              type="button"
+              className="tool-btn"
+              onClick={onShare}
+              disabled={busy}
+              aria-label="Share"
+              title="Share"
+            >
+              <ShareIcon />
+            </button>
+          </span>
+
+          <span className="divider" aria-hidden />
+
+          <button
+            type="button"
+            className="tool-btn"
+            onClick={onExitPlay}
+            aria-label="Leave play mode"
+            title="Back to drawing"
+          >
+            <CloseIcon />
+          </button>
+        </div>
+      </>
+    );
+  }
 
   return (
-    <>
-      {/* Playback is the one time speed matters, so surface it then. */}
-      {state.replaying && (
-        <div className="playbar" style={{ "--accent": accent } as React.CSSProperties}>
-          <SpeedIcon className="fx-icon" aria-hidden />
-          {speedPicker}
-        </div>
-      )}
-
     <div
       ref={barRef}
       className="toolbar"
@@ -157,7 +236,6 @@ export function Toolbar({
       <span className="tool-group">
       <Popover
         label={`Neon style: ${style.name}`}
-        accent={accent}
         trigger={<StrokePreview style={style} colorId={color.id} width={36} height={26} />}
       >
         <RadioGroup
@@ -175,11 +253,10 @@ export function Toolbar({
 
       <Popover
         label={`Ink colour: ${color.name}`}
-        accent={accent}
         trigger={
           <span
-            className="block h-4 w-4 rounded-full"
-            style={{ background: swatchFill(color), boxShadow: `0 0 12px 1px ${accent}` }}
+            className="ink-chip block h-[1.125rem] w-[1.125rem] rounded-full"
+            style={{ background: swatchFill(color) }}
           />
         }
       >
@@ -192,27 +269,16 @@ export function Toolbar({
           optionClassName="dot"
           titleOnly
         >
-          {(option) => {
-            const ink = findColor(option.id);
-            const glow = inkColor(ink.hsl, 0);
-            return (
-              <span
-                className="block h-5 w-5 rounded-full"
-                style={{
-                  background: swatchFill(ink),
-                  boxShadow: `0 0 14px 1px ${glow}`,
-                }}
-              />
-            );
-          }}
+          {(option) => (
+            <span
+              className="ink-chip block h-6 w-6 rounded-full"
+              style={{ background: swatchFill(findColor(option.id)) }}
+            />
+          )}
         </RadioGroup>
       </Popover>
 
-      <Popover
-        label={`Brush size: ${brush.size}`}
-        accent={accent}
-        trigger={<SizeIcon />}
-      >
+      <Popover label={`Brush size: ${brush.size}`} trigger={<SizeIcon />}>
         <div className="flex w-56 items-center gap-3">
           <input
             type="range"
@@ -232,11 +298,7 @@ export function Toolbar({
         </div>
       </Popover>
 
-      <Popover
-        label={`Animation: ${findEffect(effectId).name}`}
-        accent={accent}
-        trigger={<SparkIcon />}
-      >
+      <Popover label={`Animation: ${findEffect(effectId).name}`} trigger={<SparkIcon />}>
         <div className="fx-panel">
           <RadioGroup
             label="Animation"
@@ -252,12 +314,6 @@ export function Toolbar({
               return <Icon className="fx-icon" />;
             }}
           </RadioGroup>
-
-          <div className="fx-speed">
-            <SpeedIcon className="fx-icon" aria-hidden />
-            {speedPicker}
-
-          </div>
         </div>
       </Popover>
 
@@ -303,48 +359,14 @@ export function Toolbar({
       <button
         type="button"
         className="tool-btn"
-        onClick={onTogglePlay}
+        onClick={onEnterPlay}
         disabled={state.isEmpty}
-        aria-label={state.replaying ? "Stop replay" : "Replay the drawing"}
-        title={state.replaying ? "Stop" : "Replay"}
-        data-playing={state.replaying || undefined}
+        aria-label="Replay the drawing"
+        title="Replay"
       >
         <PlayIcon />
       </button>
-
-      <button
-        type="button"
-        className="tool-btn"
-        onClick={onExportClip}
-        disabled={state.isEmpty || !canRecord || busy}
-        aria-label={canRecord ? "Export video" : "This browser cannot record video"}
-        title={canRecord ? "Export video" : "This browser cannot record video"}
-      >
-        <VideoIcon />
-      </button>
-
-      <button
-        type="button"
-        className="tool-btn"
-        onClick={onDownload}
-        disabled={state.isEmpty || busy}
-        aria-label="Download PNG"
-        title="Download"
-      >
-        <DownloadIcon />
-      </button>
-      <button
-        type="button"
-        className="tool-btn"
-        onClick={onShare}
-        disabled={state.isEmpty || busy}
-        aria-label="Share"
-        title="Share"
-      >
-        <ShareIcon />
-      </button>
       </span>
     </div>
-    </>
   );
 }

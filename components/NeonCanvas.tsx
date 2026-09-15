@@ -36,6 +36,24 @@ function readStoredEffect(): EffectId {
   }
 }
 
+/**
+ * The cursor is the brush: a ring exactly as wide as the line it will paint,
+ * so the size is visible before a stroke is committed to. Small brushes get a
+ * floor, or the ring would be too small to aim with.
+ */
+function brushCursor(size: number): string {
+  const d = Math.max(11, size);
+  const box = Math.ceil(d + 6);
+  const c = box / 2;
+  const r = d / 2;
+  const svg =
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${box}" height="${box}">` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="rgba(0,0,0,.6)" stroke-width="3"/>` +
+    `<circle cx="${c}" cy="${c}" r="${r}" fill="none" stroke="#fff" stroke-width="1.2"/>` +
+    `</svg>`;
+  return `url("data:image/svg+xml,${encodeURIComponent(svg)}") ${c} ${c}, crosshair`;
+}
+
 function readStoredSpeed(): number {
   try {
     return normaliseSpeed(window.localStorage.getItem(SPEED_KEY));
@@ -68,6 +86,8 @@ export function NeonCanvas() {
   // seed the very first render without a hydration mismatch.
   const [brush, setBrush] = useState<Brush>(readStoredBrush);
   const [effectId, setEffectId] = useState<EffectId>(readStoredEffect);
+  /** Play mode: the drawing is being watched, not drawn on. */
+  const [playMode, setPlayMode] = useState(false);
   const [replaySpeed, setReplaySpeed] = useState<number>(readStoredSpeed);
   const [state, setState] = useState<EngineState>({
     canUndo: false,
@@ -145,6 +165,19 @@ export function NeonCanvas() {
     [],
   );
 
+  const enterPlay = useCallback(() => {
+    const engine = engineRef.current;
+    if (!engine || engine.state.isEmpty) return;
+    setPlayMode(true);
+    engine.startReplay(replaySpeed);
+  }, [replaySpeed]);
+
+  const exitPlay = useCallback(() => {
+    engineRef.current?.stopReplay();
+    setPlayMode(false);
+  }, []);
+
+  /** Stop the run in flight, or start it again from the beginning. */
   const togglePlay = useCallback(() => {
     const engine = engineRef.current;
     if (!engine) return;
@@ -152,7 +185,7 @@ export function NeonCanvas() {
     else engine.startReplay(replaySpeed);
   }, [replaySpeed]);
 
-  // Changing the speed mid-playback takes effect immediately.
+  // Moving the slider mid-playback takes effect immediately.
   useEffect(() => {
     engineRef.current?.setReplaySpeed(replaySpeed);
   }, [replaySpeed]);
@@ -246,7 +279,7 @@ export function NeonCanvas() {
     if (!canvas || !engine) return;
 
     // Play mode owns the canvas; a stray tap must not drop dots on the drawing.
-    if (engine.state.replaying) return;
+    if (playMode) return;
 
     activePointer.current = event.pointerId;
     pressStart.current = performance.now();
@@ -298,6 +331,8 @@ export function NeonCanvas() {
       <canvas
         ref={canvasRef}
         className="surface"
+        // Play mode owns the canvas, so the pointer stops promising a stroke.
+        style={{ cursor: playMode ? "default" : brushCursor(brush.size) }}
         aria-label={
           state.isEmpty
             ? "Neon drawing canvas, empty. Draw with a pencil, finger or mouse."
@@ -316,9 +351,12 @@ export function NeonCanvas() {
         onBrushChange={(patch) => setBrush((current) => ({ ...current, ...patch }))}
         effectId={effectId}
         onEffectChange={setEffectId}
+        playMode={playMode}
+        onEnterPlay={enterPlay}
+        onExitPlay={exitPlay}
+        onTogglePlay={togglePlay}
         replaySpeed={replaySpeed}
         onReplaySpeedChange={setReplaySpeed}
-        onTogglePlay={togglePlay}
         onExportClip={() => void exportClip()}
         canRecord={canRecord}
         state={state}

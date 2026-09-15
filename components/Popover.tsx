@@ -6,15 +6,13 @@ type PopoverProps = {
   label: string;
   trigger: ReactNode;
   children: ReactNode;
-  /** Accent colour for the panel hairline, matching the active ink. */
-  accent: string;
 };
 
 /**
  * Small anchored panel used by the style, colour and size controls. Closes on
  * outside pointer down and on Escape, and returns focus to its trigger.
  */
-export function Popover({ label, trigger, children, accent }: PopoverProps) {
+export function Popover({ label, trigger, children }: PopoverProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -53,6 +51,14 @@ export function Popover({ label, trigger, children, accent }: PopoverProps) {
     };
   }, [open]);
 
+  // Picking an option is the whole errand, so the panel gets out of the way.
+  // A drag on the size slider is not a pick, hence the radio-only test.
+  const closeOnPick = (event: React.MouseEvent) => {
+    if (!(event.target as HTMLElement).closest('[role="radio"]')) return;
+    setOpen(false);
+    triggerRef.current?.focus();
+  };
+
   return (
     <div ref={rootRef} className="relative">
       <button
@@ -76,7 +82,7 @@ export function Popover({ label, trigger, children, accent }: PopoverProps) {
           role="dialog"
           aria-label={label}
           className="panel"
-          style={{ boxShadow: `0 0 34px -12px ${accent}` }}
+          onClick={closeOnPick}
         >
           {children}
         </div>

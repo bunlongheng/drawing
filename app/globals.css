@@ -61,19 +61,6 @@ body {
   cursor: crosshair;
 }
 
-/*
-  A pencil for anyone drawing with a mouse or trackpad. The hotspot sits on the
-  nib, so the line starts where the tip is. Fine pointers only - a touch device
-  has no cursor, and the dark outline keeps it readable over a bright stroke.
-*/
-@media (hover: hover) and (pointer: fine) {
-  .surface {
-    cursor:
-      url("data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20width%3D%2228%22%20height%3D%2228%22%20viewBox%3D%220%200%2028%2028%22%3E%3Cg%20transform%3D%22rotate%2845%2014%2014%29%22%20stroke%3D%22rgba%280%2C0%2C0%2C.55%29%22%20stroke-width%3D%221.1%22%20stroke-linejoin%3D%22round%22%3E%3Cpath%20d%3D%22M11.4%205.6a2.6%202.6%200%200%201%205.2%200v11.9h-5.2z%22%20fill%3D%22%23ffffff%22%2F%3E%3Cpath%20d%3D%22M11.4%2017.5h5.2v1.7h-5.2z%22%20fill%3D%22%23c9ccd1%22%2F%3E%3Cpath%20d%3D%22M11.4%2019.2h5.2L14%2024.8z%22%20fill%3D%22%23f4f5f7%22%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E") 7 21,
-      crosshair;
-  }
-}
-
 /* --- The floating instrument ------------------------------------------- */
 
 .toolbar {
@@ -98,7 +85,6 @@ body {
   -webkit-backdrop-filter: blur(20px) saturate(140%);
   box-shadow:
     0 1px 0 0 rgba(255, 255, 255, 0.06) inset,
-    0 18px 48px -24px var(--accent),
     0 8px 32px -18px rgba(0, 0, 0, 0.9);
   transition: opacity 240ms ease, transform 240ms ease;
 }
@@ -145,8 +131,8 @@ body {
 /* One icon size for every control, so they scale together. */
 .tool-btn svg,
 .fx-icon {
-  width: 1.4375rem;
-  height: 1.4375rem;
+  width: 1.725rem;
+  height: 1.725rem;
 }
 
 .tool-btn {
@@ -175,7 +161,6 @@ body {
   color: #fff;
   background: color-mix(in srgb, var(--accent) 24%, transparent);
   border-color: var(--accent);
-  box-shadow: 0 0 16px -4px var(--accent);
 }
 
 .tool-btn[data-armed] {
@@ -197,8 +182,8 @@ body {
 }
 
 /*
-  The speed strip shown during playback. Same glass as the toolbar, parked
-  directly above it so the control is under the thumb while it plays.
+  The play-mode flag, parked directly above the toolbar. It is the one piece
+  of chrome that says the canvas is being watched rather than drawn on.
 */
 .playbar {
   position: absolute;
@@ -212,17 +197,37 @@ body {
   width: fit-content;
   max-width: calc(100vw - 1.5rem);
   margin-inline: auto;
-  padding: 0.3125rem 0.75rem;
+  padding: 0.3125rem 0.875rem;
   border-radius: 999px;
   border: 1px solid var(--hair);
   background: var(--glass);
   color: var(--ink-dim);
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
-  box-shadow: 0 18px 48px -24px var(--accent);
 }
 
-.playbar 
+/* Lit while the replay is actually running, dim once it has finished. */
+.play-dot {
+  width: 0.4375rem;
+  height: 0.4375rem;
+  border-radius: 999px;
+  background: var(--hair-strong);
+}
+
+.play-label {
+  min-width: 5rem;
+}
+
+.play-dot[data-live] {
+  background: var(--accent);
+  animation: play-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes play-pulse {
+  50% {
+    opacity: 0.35;
+  }
+}
 
 /* --- Popover panels ----------------------------------------------------- */
 
@@ -269,8 +274,7 @@ body {
   border-color: var(--hair-strong);
 }
 
-/* Exactly as wide as the six effect buttons, so the speed row lines up with
-   them instead of pushing past the edge of the panel. */
+/* Exactly as wide as the six effect buttons. */
 .fx-panel {
   width: min(calc(var(--btn) * 6 + 0.9375rem), calc(100vw - 3rem));
 }
@@ -303,37 +307,6 @@ body {
   border-color: var(--hair-strong);
 }
 
-.fx-speed {
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  margin-top: 0.5rem;
-  padding-top: 0.5rem;
-  border-top: 1px solid var(--hair);
-  color: var(--ink-dim);
-}
-
-/* Seven speeds: four on the first row, three on the second. */
-.speeds {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: 0.125rem;
-  /* Grid items default to min-width:auto and refuse to shrink; the last
-     speed was being pushed past the edge of the panel. */
-  flex: 1;
-  min-width: 0;
-}
-
-
-.speed:hover {
-  background: rgba(255, 255, 255, 0.05);
-}
-
-.speed[data-active] {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: var(--hair-strong);
-}
-
 /* Four styles, one row - a 3-wide grid left an orphan on the second. */
 .styles {
   display: grid;
@@ -341,27 +314,41 @@ body {
   gap: 0.125rem;
 }
 
-/* 8 inks, four to a row. */
+/*
+  The ink row, read from PencilKit: eight flat discs on ONE line, the colour
+  itself doing all the talking. No halo - a glow around a swatch reads as a
+  render bug on a black canvas, not as neon.
+*/
 .inks {
   display: grid;
-  grid-template-columns: repeat(4, auto);
-  gap: 0.25rem;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 0.125rem;
   justify-items: center;
 }
 
 .dot {
   display: grid;
   place-items: center;
-  width: 2.5rem;
-  height: 2.5rem;
+  width: 2.25rem;
+  height: 2.25rem;
   border-radius: 999px;
-  border: 1px solid transparent;
-  transition: border-color 160ms ease, transform 160ms ease;
+  transition: background 160ms ease;
 }
 
-.dot[data-active] {
-  border-color: var(--hair-strong);
-  transform: scale(1.08);
+.dot:hover {
+  background: rgba(255, 255, 255, 0.06);
+}
+
+/* Selected: a ring with a gap of panel behind it, the way a pen reads as picked. */
+.ink-chip {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16);
+}
+
+.dot[data-active] .ink-chip {
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.16),
+    0 0 0 2px #0e0e11,
+    0 0 0 3.5px rgba(255, 255, 255, 0.92);
 }
 
 /*
@@ -382,7 +369,7 @@ body {
   width: 100%;
   height: 1.5rem;
   background: transparent;
-  /* Both sliders take the ink colour instead of the browser default blue. */
+  /* Takes the ink colour instead of the browser default blue. */
   accent-color: var(--accent);
   cursor: pointer;
 }
@@ -399,7 +386,7 @@ body {
 .speed-track {
   position: relative;
   flex: 1;
-  min-width: 7.5rem;
+  min-width: 6.5rem;
   display: flex;
   align-items: center;
 }

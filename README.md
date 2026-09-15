@@ -17,8 +17,8 @@ Neon on black. Pick up an Apple Pencil, draw, and watch the line light up.
 - **Gets out of the way.** Pure black canvas, one small toolbar that fades while you draw.
 - **Lets you rest your hand.** Once it has seen a Pencil, your palm is ignored.
 - **Comes alive.** Fireflies drift past your lines, sparks glint off them, a current runs through the tube. Or switch it off and let it sit still.
-- **Plays itself back.** Press play and the drawing redraws itself, slowly enough for a kid to follow, at whatever pace suits, then saves the whole thing as an MP4.
-- **Saves it.** PNG at full resolution, straight into the share sheet.
+- **Plays itself back.** Press play and the drawing redraws itself, at 0.1x to 3x, slowly enough for a kid to follow.
+- **Saves it.** Play mode is where a finished piece goes out: MP4 of the replay, PNG at full resolution, or straight into the share sheet.
 
 ![The four neon styles](docs/screenshots/styles.png)
 
@@ -43,7 +43,8 @@ No environment variables, no accounts, no database. Nothing you draw leaves your
 | Undo, redo | `Cmd+Z`, `Cmd+Shift+Z` |
 | Save a PNG | `Cmd+S` |
 | Clear | Tap the bin twice |
-| Replay, record | Play, then the camera |
+| Replay | Play, which opens play mode |
+| Record, save, share | In play mode: the camera, the arrow, the box |
 
 ## Under the hood
 
