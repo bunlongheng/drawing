@@ -130,10 +130,52 @@ export function particlesAt(id: EffectId, t: number): Particle[] {
   return out;
 }
 
+/**
+ * Dust: a cloud of 1px motes that hangs around the bright ones.
+ *
+ * Same derivation as the big particles, seeded apart so the two clouds do not
+ * sit on the same points. They are painted as flat squares, not glows, which
+ * is what keeps a hundred of them cheap.
+ */
+const DUST_COUNT = 110;
+const DUST_LIFE = 3.2;
+const DUST_DRIFT = 34;
+
+export type Mote = {
+  /** Where on the artwork it sits, 0 to 1 along everything drawn. */
+  at: number;
+  alpha: number;
+  dx: number;
+  dy: number;
+};
+
+export function dustAt(t: number): Mote[] {
+  const out: Mote[] = [];
+  for (let i = 0; i < DUST_COUNT; i += 1) {
+    const turns = t / DUST_LIFE + i * STAGGER;
+    const cycle = Math.floor(turns);
+    const phase = turns - cycle;
+    const seed = i * 7717 + cycle * 197;
+
+    const angle = hash01(seed + 2) * Math.PI * 2;
+    const reach = DUST_DRIFT * (0.2 + 0.8 * hash01(seed + 4)) * phase;
+    out.push({
+      at: hash01(seed + 11),
+      alpha: Math.sin(phase * Math.PI) * 0.85,
+      dx: Math.cos(angle) * reach,
+      dy: Math.sin(angle) * reach - phase * 9,
+    });
+  }
+  return out;
+}
+
 /** Seconds a `flow` head takes to travel the whole artwork once. */
 const FLOW_PERIOD = 6;
 /** How many trailing points follow the head. */
 export const FLOW_TRAIL = 14;
+
+/** How much of the artwork the flow dust spreads over, either side of the head. */
+export const FLOW_DUST_SPAN = 0.16;
 
 /** Where the travelling head sits at `t` seconds, as 0 to 1 along the artwork. */
 export function flowHeadAt(t: number): number {

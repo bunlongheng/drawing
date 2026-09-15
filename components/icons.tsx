@@ -135,12 +135,18 @@ export function VideoIcon({ className }: IconProps) {
   );
 }
 
-export function SpeedIcon({ className }: IconProps) {
+export function StopIcon({ className }: IconProps) {
   return (
     <svg {...base} className={className}>
-      <path d="M3.6 14.4a7.2 7.2 0 1 1 12.8 0" />
-      <path d="M10 10.6 13.2 7.6" />
-      <circle cx="10" cy="11.4" r="1" />
+      <rect x="5.5" y="5.5" width="9" height="9" rx="1.6" />
+    </svg>
+  );
+}
+
+export function CloseIcon({ className }: IconProps) {
+  return (
+    <svg {...base} className={className}>
+      <path d="M6 6l8 8M14 6l-8 8" />
     </svg>
   );
 }

@@ -20,9 +20,11 @@
 
 import {
   DEFAULT_EFFECT_ID,
+  FLOW_DUST_SPAN,
   FLOW_TRAIL,
   type EffectId,
   brightnessAt,
+  dustAt,
   flowHeadAt,
   hasParticles,
   moteRadius,
@@ -90,7 +92,7 @@ type IndexPoint = { x: number; y: number; hsl: Hsl };
  * Distance, not samples: a quick stroke records its samples further apart, so
  * a per-sample rate replayed a hurried line faster than a careful one. Pacing
  * by distance means 1x is the same visible speed whatever was drawn, and every
- * fraction of it is predictable.
+ * multiple of it is predictable.
  */
 const REPLAY_PX_PER_SECOND = 210;
 
@@ -407,7 +409,7 @@ export class NeonEngine {
     this.emit();
   }
 
-  /** Change the pace of a running replay, or set it for the next one. */
+  /** Change the pace of a running replay. */
   setReplaySpeed(speed: number): void {
     if (this.replayState) this.replayState.speed = speed;
   }
@@ -569,7 +571,9 @@ export class NeonEngine {
     if (this.current) this.refreshGlow(this.current);
     if (this.current || this.replayState) ctx.drawImage(this.glow, 0, 0);
 
-    if (hasParticles(this.effectId)) this.paintParticles(ctx, seconds);
+    // Particles are placed along the finished artwork. Mid-replay half of it
+    // is not on screen yet, so they would drift over blank canvas.
+    if (!this.replayState && hasParticles(this.effectId)) this.paintParticles(ctx, seconds);
     ctx.globalCompositeOperation = "source-over";
     this.dirty = false;
     this.mirrorToClip();
@@ -608,6 +612,8 @@ export class NeonEngine {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.globalCompositeOperation = "lighter";
 
+    this.paintDust(ctx, points, seconds);
+
     const base = moteRadius(this.effectId);
     if (this.effectId === "flow") {
       const head = Math.floor(flowHeadAt(seconds) * points.length);
@@ -632,6 +638,30 @@ export class NeonEngine {
       }
     }
     ctx.restore();
+  }
+
+  /**
+   * The dust cloud: a hundred 1px squares of ink, scattered over the artwork.
+   * Flow keeps its dust around the travelling head, where the light is.
+   */
+  private paintDust(
+    ctx: CanvasRenderingContext2D,
+    points: IndexPoint[],
+    seconds: number,
+  ): void {
+    const head = this.effectId === "flow" ? flowHeadAt(seconds) : 0;
+    for (const mote of dustAt(seconds)) {
+      if (mote.alpha <= 0.02) continue;
+      const at =
+        this.effectId === "flow"
+          ? (head + (mote.at - 0.5) * FLOW_DUST_SPAN + 1) % 1
+          : mote.at;
+      const point = points[Math.min(points.length - 1, Math.floor(at * points.length))];
+      ctx.globalAlpha = mote.alpha;
+      ctx.fillStyle = inkColor(point.hsl, 0.5);
+      ctx.fillRect(point.x + mote.dx, point.y + mote.dy, 1, 1);
+    }
+    ctx.globalAlpha = 1;
   }
 
   /** One soft dot of light, optionally with a four-point glint through it. */

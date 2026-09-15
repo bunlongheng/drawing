@@ -47,45 +47,18 @@ test("a corrupted stored brush falls back to the defaults", async ({ page }) => 
 
 test("an animation can be chosen and is remembered", async ({ page }) => {
   await page.getByRole("button", { name: /Animation/ }).click();
-  // The panel holds two groups: the effects and the replay speeds.
   await expect(
     page.getByRole("radiogroup", { name: "Animation" }).getByRole("radio"),
   ).toHaveCount(6);
+  // Speed is a play-mode control, so the animation panel holds effects only.
+  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveCount(0);
   await page.getByRole("radio", { name: "Sparkle" }).click();
+  // Picking closes the panel; there is nothing else to do in it.
+  await expect(page.getByRole("dialog")).toBeHidden();
   await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
 
   await page.reload();
   await expect(page.getByRole("button", { name: "Animation: Sparkle" })).toBeVisible();
-});
-
-test("the speed slider stops on each allowed speed", async ({ page }) => {
-  await page.getByRole("button", { name: /Animation/ }).click();
-  const slider = page.getByRole("slider", { name: "Replay speed" });
-  // Opens slow, so a first-time replay is followable.
-  await expect(slider).toHaveAttribute("aria-valuetext", "0.25 times speed");
-  await expect(slider).toHaveAttribute("min", "0");
-  await expect(slider).toHaveAttribute("max", "5");
-  await expect(slider).toHaveAttribute("step", "1");
-
-  const speeds = ["0.1", "0.25", "0.5", "1", "2", "3"];
-  for (const [index, speed] of speeds.entries()) {
-    await slider.fill(String(index));
-    await expect(slider).toHaveAttribute("aria-valuetext", `${speed} times speed`);
-  }
-});
-
-test("replay speed is remembered", async ({ page }) => {
-  await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("slider", { name: "Replay speed" }).fill("3");
-  await page.keyboard.press("Escape");
-
-  await page.reload();
-  await page.getByRole("button", { name: /Animation/ }).click();
-  // Distinct from the 0.25 default, so this really is the stored value.
-  await expect(page.getByRole("slider", { name: "Replay speed" })).toHaveAttribute(
-    "aria-valuetext",
-    "1 times speed",
-  );
 });
 
 test("panels close on Escape and on an outside click", async ({ page }) => {
