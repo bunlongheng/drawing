@@ -20,11 +20,10 @@
 
 import {
   DEFAULT_EFFECT_ID,
-  FLOW_DUST_SPAN,
   FLOW_TRAIL,
   type EffectId,
   brightnessAt,
-  dustAt,
+  dustFor,
   flowHeadAt,
   hasParticles,
   moteRadius,
@@ -386,11 +385,19 @@ export class NeonEngine {
     };
   }
 
-  /** Ambient animation. "off" stops the loop entirely rather than idling. */
+  /**
+   * Ambient animation. "off" stops the loop entirely rather than idling.
+   *
+   * The loop is reconciled on every call, not only when the id changes: the
+   * canvas pushes its stored effect once on mount, and when that happened to
+   * equal the default the old early return left the drawing frozen until you
+   * opened the picker. Only the repaint is conditional.
+   */
   setEffect(id: EffectId): void {
-    if (this.effectId === id) return;
-    this.effectId = id;
-    this.requestPaint();
+    if (this.effectId !== id) {
+      this.effectId = id;
+      this.requestPaint();
+    }
     this.syncLoop();
   }
 
@@ -612,8 +619,6 @@ export class NeonEngine {
     ctx.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
     ctx.globalCompositeOperation = "lighter";
 
-    this.paintDust(ctx, points, seconds);
-
     const base = moteRadius(this.effectId);
     if (this.effectId === "flow") {
       const head = Math.floor(flowHeadAt(seconds) * points.length);
@@ -621,45 +626,44 @@ export class NeonEngine {
         const point = points[(head - i + points.length * 2) % points.length];
         const fade = 1 - i / FLOW_TRAIL;
         this.paintMote(ctx, point, point.x, point.y, fade * fade, base * (0.35 + fade), false);
+        // Sparks come off the head, not off the whole tail.
+        if (i < 4) this.paintDust(ctx, point, point.x, point.y, i, seconds, fade);
       }
     } else {
+      let seed = 0;
       for (const particle of particlesAt(this.effectId, seconds)) {
+        seed += 1;
         if (particle.alpha <= 0.01) continue;
         const point = points[Math.min(points.length - 1, Math.floor(particle.at * points.length))];
-        this.paintMote(
-          ctx,
-          point,
-          point.x + particle.dx,
-          point.y + particle.dy,
-          particle.alpha,
-          base * particle.scale,
-          particle.star,
-        );
+        const x = point.x + particle.dx;
+        const y = point.y + particle.dy;
+        this.paintMote(ctx, point, x, y, particle.alpha, base * particle.scale, particle.star);
+        this.paintDust(ctx, point, x, y, seed, seconds, particle.alpha);
       }
     }
     ctx.restore();
   }
 
   /**
-   * The dust cloud: a hundred 1px squares of ink, scattered over the artwork.
-   * Flow keeps its dust around the travelling head, where the light is.
+   * The specks around one bright mote. Flat squares, no gradient: a couple of
+   * hundred of these cost nothing, and the hard edge is what makes them read
+   * as dust in the light rather than more bloom.
    */
   private paintDust(
     ctx: CanvasRenderingContext2D,
-    points: IndexPoint[],
+    point: IndexPoint,
+    x: number,
+    y: number,
+    seed: number,
     seconds: number,
+    parentAlpha: number,
   ): void {
-    const head = this.effectId === "flow" ? flowHeadAt(seconds) : 0;
-    for (const mote of dustAt(seconds)) {
-      if (mote.alpha <= 0.02) continue;
-      const at =
-        this.effectId === "flow"
-          ? (head + (mote.at - 0.5) * FLOW_DUST_SPAN + 1) % 1
-          : mote.at;
-      const point = points[Math.min(points.length - 1, Math.floor(at * points.length))];
-      ctx.globalAlpha = mote.alpha;
-      ctx.fillStyle = inkColor(point.hsl, 0.5);
-      ctx.fillRect(point.x + mote.dx, point.y + mote.dy, 1, 1);
+    ctx.fillStyle = inkColor(point.hsl, 0.7);
+    for (const speck of dustFor(seed, seconds)) {
+      const alpha = speck.alpha * parentAlpha;
+      if (alpha <= 0.02) continue;
+      ctx.globalAlpha = alpha;
+      ctx.fillRect(x + speck.dx, y + speck.dy, speck.size, speck.size);
     }
     ctx.globalAlpha = 1;
   }

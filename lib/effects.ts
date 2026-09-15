@@ -131,39 +131,47 @@ export function particlesAt(id: EffectId, t: number): Particle[] {
 }
 
 /**
- * Dust: a cloud of 1px motes that hangs around the bright ones.
+ * Dust: the tiny motes that orbit each bright particle.
  *
- * Same derivation as the big particles, seeded apart so the two clouds do not
- * sit on the same points. They are painted as flat squares, not glows, which
- * is what keeps a hundred of them cheap.
+ * Anchored to its parent rather than to the artwork, so the cloud travels with
+ * the mote it belongs to instead of speckling the whole drawing. Each one
+ * twinkles on its own cycle, and they are painted as flat 1px squares - no
+ * gradient, which is what keeps two hundred of them free.
  */
-const DUST_COUNT = 110;
-const DUST_LIFE = 3.2;
-const DUST_DRIFT = 34;
+export const DUST_PER_MOTE = 11;
+const DUST_LIFE = 2.6;
+/** How far a speck drifts from its parent, in CSS px. */
+const DUST_SPREAD = 30;
 
-export type Mote = {
-  /** Where on the artwork it sits, 0 to 1 along everything drawn. */
-  at: number;
-  alpha: number;
+export type Dust = {
+  /** Offset from the parent particle, in CSS px. */
   dx: number;
   dy: number;
+  alpha: number;
+  /** 1 or 2 CSS px, so the cloud has some depth to it. */
+  size: number;
 };
 
-export function dustAt(t: number): Mote[] {
-  const out: Mote[] = [];
-  for (let i = 0; i < DUST_COUNT; i += 1) {
-    const turns = t / DUST_LIFE + i * STAGGER;
+/**
+ * The specks around one parent at `t` seconds. `seed` keeps every parent's
+ * cloud different, and the whole thing is still a pure function of time.
+ */
+export function dustFor(seed: number, t: number): Dust[] {
+  const out: Dust[] = [];
+  for (let i = 0; i < DUST_PER_MOTE; i += 1) {
+    const turns = t / DUST_LIFE + i * STAGGER + seed * 0.37;
     const cycle = Math.floor(turns);
     const phase = turns - cycle;
-    const seed = i * 7717 + cycle * 197;
+    const n = seed * 7717 + i * 131 + cycle * 197;
 
-    const angle = hash01(seed + 2) * Math.PI * 2;
-    const reach = DUST_DRIFT * (0.2 + 0.8 * hash01(seed + 4)) * phase;
+    // Each speck holds its own bearing for its whole life and drifts outward.
+    const angle = hash01(n + 2) * Math.PI * 2;
+    const reach = DUST_SPREAD * (0.25 + 0.75 * hash01(n + 4)) * phase;
     out.push({
-      at: hash01(seed + 11),
-      alpha: Math.sin(phase * Math.PI) * 0.85,
       dx: Math.cos(angle) * reach,
-      dy: Math.sin(angle) * reach - phase * 9,
+      dy: Math.sin(angle) * reach - phase * 7,
+      alpha: Math.sin(phase * Math.PI) * (0.5 + 0.5 * hash01(n + 6)),
+      size: hash01(n + 8) > 0.78 ? 2 : 1,
     });
   }
   return out;
@@ -173,9 +181,6 @@ export function dustAt(t: number): Mote[] {
 const FLOW_PERIOD = 6;
 /** How many trailing points follow the head. */
 export const FLOW_TRAIL = 14;
-
-/** How much of the artwork the flow dust spreads over, either side of the head. */
-export const FLOW_DUST_SPAN = 0.16;
 
 /** Where the travelling head sits at `t` seconds, as 0 to 1 along the artwork. */
 export function flowHeadAt(t: number): number {

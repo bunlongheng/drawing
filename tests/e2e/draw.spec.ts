@@ -55,6 +55,13 @@ async function stroke(
   );
 }
 
+/** Turn the ambient animation off, so a pixel count is stable frame to frame. */
+async function stillCanvas(page: Page): Promise<void> {
+  await page.getByRole("button", { name: /Animation/ }).click();
+  await page.getByRole("radio", { name: "Off" }).click();
+  await expect(page.getByRole("button", { name: "Animation: Off" })).toBeVisible();
+}
+
 /**
  * Draw something and enter play mode, where the export actions live. The
  * replay runs on entry; the exports sit under it the whole time.
@@ -97,6 +104,8 @@ test("pressure drives stroke width", async ({ page }) => {
 });
 
 test("ignores touch once a pen has been used, so a resting palm draws nothing", async ({ page }) => {
+  // Motes drift between the two counts otherwise, and the palm is the variable.
+  await stillCanvas(page);
   await stroke(page, { pointerType: "pen", from: [120, 160] });
   const afterPen = await litPixels(page);
 
@@ -304,9 +313,7 @@ test("undoing back past a checkpoint clears the canvas completely", async ({ pag
 
 test("play mode locks the canvas so a stray tap leaves no dots", async ({ page }) => {
   // Animation off, so the pixel count is stable and the lock is the only variable.
-  await page.getByRole("button", { name: /Animation/ }).click();
-  await page.getByRole("radio", { name: "Off" }).click();
-  await page.keyboard.press("Escape");
+  await stillCanvas(page);
 
   await stroke(page, { pointerType: "pen", pressure: 0.9 });
   const drawn = await litPixels(page);
